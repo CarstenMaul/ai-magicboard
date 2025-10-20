@@ -6,6 +6,7 @@ import {
   getScratchpadTools,
   showToast,
   downloadScratchpadAsMarkdown,
+  exitFullscreenSkill,
 } from './scratchpad';
 
 interface TokenResponse {
@@ -551,8 +552,18 @@ async function disconnectAgent(): Promise<void> {
   }
 }
 
-// Keyboard event handler for mute toggle
+// Keyboard event handler for mute toggle and fullscreen exit
 function handleKeyDown(event: KeyboardEvent): void {
+  // Handle ESC key to exit fullscreen
+  if (event.key === 'Escape' || event.code === 'Escape') {
+    const scratchpadDiv = document.getElementById('scratchpad');
+    if (scratchpadDiv && scratchpadDiv.classList.contains('fullscreen-mode')) {
+      event.preventDefault();
+      exitFullscreenSkill();
+      return;
+    }
+  }
+
   // Debug: Display last key pressed
   const debugInfo = document.getElementById('debugInfo');
   if (debugInfo) {

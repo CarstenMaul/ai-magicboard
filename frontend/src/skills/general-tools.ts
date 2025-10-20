@@ -11,6 +11,9 @@ export function getGeneralTools(
     moveRowUp: (skillId: string) => string;
     moveRowDown: (skillId: string) => string;
     clearScratchpad: () => string;
+    scrollToSkill: (skillId: string) => string;
+    enterFullscreenSkill: (skillId: string) => string;
+    exitFullscreenSkill: () => string;
   }
 ): ToolDefinition[] {
   return [
@@ -165,6 +168,55 @@ export function getGeneralTools(
         return scratchpadFunctions.clearScratchpad();
       },
     },
+    {
+      name: 'scroll_to_row',
+      description: 'Scrolls the viewport to bring a specific skill/row into view and highlights it temporarily. Useful for directing the user\'s attention to a particular skill.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_id: {
+            type: 'string',
+            description: 'The skill ID to scroll to (e.g., "skill-1")',
+          },
+        },
+        required: ['skill_id'],
+        additionalProperties: true,
+      },
+      execute: async (input: any) => {
+        return scratchpadFunctions.scrollToSkill(input.skill_id);
+      },
+    },
+    {
+      name: 'show_fullscreen',
+      description: 'Displays a specific skill/row in fullscreen mode, hiding all other content. Great for presentations or focusing on a single skill. User can press ESC to exit.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_id: {
+            type: 'string',
+            description: 'The skill ID to display in fullscreen (e.g., "skill-1")',
+          },
+        },
+        required: ['skill_id'],
+        additionalProperties: true,
+      },
+      execute: async (input: any) => {
+        return scratchpadFunctions.enterFullscreenSkill(input.skill_id);
+      },
+    },
+    {
+      name: 'exit_fullscreen',
+      description: 'Exits fullscreen mode and returns to normal scratchpad view showing all skills.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+        additionalProperties: true,
+      },
+      execute: async () => {
+        return scratchpadFunctions.exitFullscreenSkill();
+      },
+    },
   ];
 }
 
@@ -179,6 +231,9 @@ The scratchpad uses a row-based layout where each skill is displayed in its own 
 - delete_skill: Deletes a skill by skill ID
 - move_row_up: Moves a skill up one position (swaps with the row above)
 - move_row_down: Moves a skill down one position (swaps with the row below)
+- scroll_to_row: Scrolls to a specific skill/row and highlights it (useful for navigation)
+- show_fullscreen: Displays a skill in fullscreen mode (great for presentations or focusing)
+- exit_fullscreen: Exits fullscreen mode and returns to normal view
 - clear_scratchpad: Clears all skills from the scratchpad
 
 **Skill Types:**`;

@@ -22,6 +22,7 @@ export interface Row {
 let rows: Row[] = [];
 let nextSkillId = 1;
 let nextRowNumber = 1;
+let fullscreenSkillId: string | null = null;
 
 // Generate a short description from skill content
 function generateShortDescription(skill: Skill): string {
@@ -38,36 +39,76 @@ export async function updateScratchpadUI(): Promise<void> {
   const scratchpadDiv = document.getElementById('scratchpad');
   if (!scratchpadDiv) return;
 
-  if (rows.length === 0) {
-    scratchpadDiv.innerHTML = '';
-  } else {
-    let html = '';
+  // Handle fullscreen mode
+  if (fullscreenSkillId) {
+    const fullscreenRow = rows.find(r => r.skill.id === fullscreenSkillId);
+    if (fullscreenRow) {
+      const skillHtml = await renderSkill(fullscreenRow.skill);
+      const shortDescription = generateShortDescription(fullscreenRow.skill);
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const isFirst = i === 0;
-      const isLast = i === rows.length - 1;
-      const shortDescription = generateShortDescription(row.skill);
-
-      const skillHtml = await renderSkill(row.skill);
-      html += `
-        <div class="scratchpad-row" data-row="${row.rowNumber}" data-skill-id="${row.skill.id}">
-          <div class="row-header">
-            <span class="row-number">Row ${row.rowNumber}</span>
-            <span class="skill-id">${row.skill.id} [${row.skill.type}]</span>
-            <span class="skill-description">${shortDescription}</span>
-            <div class="row-controls">
-              <button class="row-btn row-up" data-skill-id="${row.skill.id}" ${isFirst ? 'disabled' : ''} title="Move row up">▲</button>
-              <button class="row-btn row-down" data-skill-id="${row.skill.id}" ${isLast ? 'disabled' : ''} title="Move row down">▼</button>
+      scratchpadDiv.innerHTML = `
+        <div class="fullscreen-overlay" id="fullscreenOverlay">
+          <div class="fullscreen-header">
+            <div class="fullscreen-info">
+              <span class="fullscreen-row-number">Row ${fullscreenRow.rowNumber}</span>
+              <span class="fullscreen-skill-id">${fullscreenRow.skill.id} [${fullscreenRow.skill.type}]</span>
+              <span class="fullscreen-description">${shortDescription}</span>
             </div>
+            <button class="fullscreen-exit-btn" onclick="window.exitFullscreenSkill()" title="Exit fullscreen (ESC)">✕ Exit Fullscreen</button>
           </div>
-          ${skillHtml}
+          <div class="fullscreen-content">
+            ${skillHtml}
+          </div>
         </div>
-        <div class="row-separator"></div>
       `;
-    }
 
-    scratchpadDiv.innerHTML = html;
+      // Add fullscreen class to scratchpad for styling
+      scratchpadDiv.classList.add('fullscreen-mode');
+    } else {
+      // Fullscreen skill not found, exit fullscreen
+      fullscreenSkillId = null;
+    }
+  }
+
+  // Normal mode (not fullscreen)
+  if (!fullscreenSkillId) {
+    scratchpadDiv.classList.remove('fullscreen-mode');
+
+    if (rows.length === 0) {
+      scratchpadDiv.innerHTML = '';
+    } else {
+      let html = '';
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const isFirst = i === 0;
+        const isLast = i === rows.length - 1;
+        const shortDescription = generateShortDescription(row.skill);
+
+        const skillHtml = await renderSkill(row.skill);
+        html += `
+          <div class="scratchpad-row" data-row="${row.rowNumber}" data-skill-id="${row.skill.id}">
+            <div class="row-header">
+              <span class="row-number">Row ${row.rowNumber}</span>
+              <span class="skill-id">${row.skill.id} [${row.skill.type}]</span>
+              <span class="skill-description">${shortDescription}</span>
+              <div class="row-controls">
+                <button class="row-btn row-up" data-skill-id="${row.skill.id}" ${isFirst ? 'disabled' : ''} title="Move row up">▲</button>
+                <button class="row-btn row-down" data-skill-id="${row.skill.id}" ${isLast ? 'disabled' : ''} title="Move row down">▼</button>
+              </div>
+            </div>
+            ${skillHtml}
+          </div>
+          <div class="row-separator"></div>
+        `;
+      }
+
+      scratchpadDiv.innerHTML = html;
+    }
+  }
+
+  // Only render mermaid/tables if not in fullscreen or if fullscreen skill needs them
+  if (scratchpadDiv.innerHTML !== '') {
 
     // Render mermaid diagrams
     const mermaidElements = scratchpadDiv.querySelectorAll('.mermaid');
@@ -401,6 +442,69 @@ export function moveRowDown(skillId: string): string {
   return `Skill ${skillId} moved down`;
 }
 
+// Scroll to a specific skill/row
+export function scrollToSkill(skillId: string): string {
+  const row = rows.find(r => r.skill.id === skillId);
+
+  if (!row) {
+    return `Skill ${skillId} not found`;
+  }
+
+  // Find the DOM element for this row
+  const rowElement = document.querySelector(`[data-skill-id="${skillId}"]`) as HTMLElement;
+
+  if (!rowElement) {
+    return `Row element for skill ${skillId} not found in DOM`;
+  }
+
+  // Scroll the row into view with smooth animation
+  rowElement.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
+
+  // Add a temporary highlight effect
+  rowElement.classList.add('row-highlight');
+  setTimeout(() => {
+    rowElement.classList.remove('row-highlight');
+  }, 2000);
+
+  showToast(`Scrolled to ${skillId}`);
+  return `Scrolled to skill ${skillId} in row ${row.rowNumber}`;
+}
+
+// Enter fullscreen mode for a specific skill
+export function enterFullscreenSkill(skillId: string): string {
+  const row = rows.find(r => r.skill.id === skillId);
+
+  if (!row) {
+    return `Skill ${skillId} not found`;
+  }
+
+  fullscreenSkillId = skillId;
+  updateScratchpadUI();
+  showToast(`${skillId} in fullscreen (press ESC to exit)`);
+
+  return `Skill ${skillId} is now displayed in fullscreen mode`;
+}
+
+// Exit fullscreen mode
+export function exitFullscreenSkill(): string {
+  if (!fullscreenSkillId) {
+    return 'Not currently in fullscreen mode';
+  }
+
+  const previousSkillId = fullscreenSkillId;
+  fullscreenSkillId = null;
+  updateScratchpadUI();
+  showToast('Exited fullscreen mode');
+
+  return `Exited fullscreen mode for ${previousSkillId}`;
+}
+
+// Expose exitFullscreenSkill globally for button onclick
+(window as any).exitFullscreenSkill = exitFullscreenSkill;
+
 // Download scratchpad as markdown
 export function downloadScratchpadAsMarkdown(): void {
   if (rows.length === 0) {
@@ -473,6 +577,9 @@ export function getScratchpadTools() {
     moveRowUp,
     moveRowDown,
     clearScratchpad,
+    scrollToSkill,
+    enterFullscreenSkill,
+    exitFullscreenSkill,
   };
 
   const tools = getAllTools(api, scratchpadFunctions);
