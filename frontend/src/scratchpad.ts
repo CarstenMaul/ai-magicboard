@@ -70,12 +70,20 @@ export async function updateScratchpadUI(): Promise<void> {
     scratchpadDiv.innerHTML = html;
 
     // Render mermaid diagrams
-    try {
-      await mermaid.run({
-        querySelector: '.scratchpad-content .mermaid',
-      });
-    } catch (error) {
-      console.error('Failed to render mermaid diagrams:', error);
+    const mermaidElements = scratchpadDiv.querySelectorAll('.mermaid');
+    if (mermaidElements.length > 0) {
+      try {
+        await mermaid.run({
+          nodes: Array.from(mermaidElements) as HTMLElement[],
+          suppressErrors: true,
+        });
+      } catch (error) {
+        console.error('Failed to render mermaid diagrams:', error);
+        if (error instanceof Error) {
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+        }
+      }
     }
 
     // Wait for all images to load
@@ -391,6 +399,56 @@ export function moveRowDown(skillId: string): string {
   showToast(`Moved ${skillId} down`);
 
   return `Skill ${skillId} moved down`;
+}
+
+// Download scratchpad as markdown
+export function downloadScratchpadAsMarkdown(): void {
+  if (rows.length === 0) {
+    showToast('Scratchpad is empty - nothing to download');
+    return;
+  }
+
+  // Build markdown content
+  let markdown = '# AI Magicboard Scratchpad\n\n';
+  markdown += `*Downloaded on ${new Date().toLocaleString()}*\n\n`;
+  markdown += '---\n\n';
+
+  // Iterate through all rows and get markdown content
+  rows.forEach((row, index) => {
+    const handler = getSkillHandler(row.skill.type);
+    const skillMarkdown = handler.getContentAsMarkdown(row.skill);
+
+    // Add row header
+    markdown += `## Row ${row.rowNumber}: ${row.skill.id} [${row.skill.type}]\n\n`;
+
+    // Add the skill content as markdown
+    markdown += skillMarkdown + '\n\n';
+
+    // Add separator between rows (except for last row)
+    if (index < rows.length - 1) {
+      markdown += '---\n\n';
+    }
+  });
+
+  // Create a blob and download link
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  link.href = url;
+  link.download = `magicboard-${timestamp}.md`;
+
+  // Trigger download
+  document.body.appendChild(link);
+  link.click();
+
+  // Cleanup
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  showToast('Markdown file downloaded');
 }
 
 // Export tools and instructions for main.ts

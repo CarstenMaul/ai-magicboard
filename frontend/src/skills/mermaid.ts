@@ -278,4 +278,9 @@ requirement r1 {
 
 **Hierarchy**: By indentation, leaves supply values`;
   },
+
+  getContentAsMarkdown: (skill: Skill): string => {
+    // Wrap mermaid content in markdown code fence
+    return `\`\`\`mermaid\n${skill.content}\n\`\`\``;
+  },
 };

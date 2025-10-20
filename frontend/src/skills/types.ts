@@ -43,6 +43,7 @@ export interface SkillHandler {
   type: SkillType;
   render: (skill: Skill) => Promise<string>;
   generateDescription: (skill: Skill) => string;
+  getContentAsMarkdown: (skill: Skill) => string;
   canResize?: boolean;
   getBase64?: (skill: Skill) => Promise<{ skillId: string; type: string; mimeType: string; base64Data: string; altText?: string; [key: string]: any }>;
   getTools?: (api: ScratchpadAPI) => ToolDefinition[];

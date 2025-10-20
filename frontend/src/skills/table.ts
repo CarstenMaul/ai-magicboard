@@ -48,6 +48,21 @@ export const tableSkill: SkillHandler = {
     return `Table: ${tableData.columns.length} columns, ${tableData.data.length} rows`;
   },
 
+  getContentAsMarkdown: (skill: Skill): string => {
+    const tableData = parseTableContent(skill.content);
+
+    if (tableData.columns.length === 0) {
+      return '_Empty table_';
+    }
+
+    // Generate markdown table
+    const headerRow = '| ' + tableData.columns.join(' | ') + ' |';
+    const separatorRow = '|' + tableData.columns.map(() => '---').join('|') + '|';
+    const dataRows = tableData.data.map(row => '| ' + row.join(' | ') + ' |');
+
+    return [headerRow, separatorRow, ...dataRows].join('\n');
+  },
+
   getTools: (api: ScratchpadAPI): ToolDefinition[] => {
     return [
       {

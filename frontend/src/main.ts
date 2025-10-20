@@ -5,6 +5,7 @@ import {
   createSkill,
   getScratchpadTools,
   showToast,
+  downloadScratchpadAsMarkdown,
 } from './scratchpad';
 
 interface TokenResponse {
@@ -584,6 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const connectButton = document.getElementById('connectButton');
   const disconnectButton = document.getElementById('disconnectButton');
   const muteButton = document.getElementById('muteButton');
+  const downloadButton = document.getElementById('downloadButton');
 
   if (connectButton) {
     connectButton.addEventListener('click', connectAgent);
@@ -595,6 +597,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (muteButton) {
     muteButton.addEventListener('click', toggleMute);
+  }
+
+  if (downloadButton) {
+    downloadButton.addEventListener('click', downloadScratchpadAsMarkdown);
   }
 
   // Add keyboard listener for mute toggle

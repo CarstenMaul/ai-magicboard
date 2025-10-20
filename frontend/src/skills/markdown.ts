@@ -27,6 +27,11 @@ export const markdownSkill: SkillHandler = {
     return cleanContent.substring(0, maxLength) + '...';
   },
 
+  getContentAsMarkdown: (skill: Skill): string => {
+    // Markdown content is already in markdown format
+    return skill.content;
+  },
+
   getInstructions: (): string => {
     return `- 'markdown': Text/markdown content`;
   },

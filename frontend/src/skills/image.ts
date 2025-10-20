@@ -130,6 +130,20 @@ export const imageSkill: SkillHandler = {
     return skill.altText || skill.content.substring(0, 40) + (skill.content.length > 40 ? '...' : '');
   },
 
+  getContentAsMarkdown: (skill: Skill): string => {
+    if (skill.gallery && skill.gallery.length > 0) {
+      // Return gallery as multiple markdown images
+      return skill.gallery.map(img => {
+        const alt = img.altText || `Image ${img.index}`;
+        return `![${alt}](${img.content})`;
+      }).join('\n\n');
+    } else {
+      // Return single image as markdown
+      const alt = skill.altText || 'Image';
+      return `![${alt}](${skill.content})`;
+    }
+  },
+
   getBase64: async (skill: Skill) => {
     // For single images, handle based on content type
     if (!skill.gallery || skill.gallery.length === 0) {
