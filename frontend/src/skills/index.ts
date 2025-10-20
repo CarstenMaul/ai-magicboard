@@ -1,8 +1,7 @@
 import { SkillHandler, SkillType, ScratchpadAPI, ToolDefinition } from './types';
 import { markdownSkill } from './markdown';
 import { mermaidSkill } from './mermaid';
-import { imageUrlSkill } from './image-url';
-import { imageBase64Skill } from './image-base64';
+import { imageSkill } from './image';
 import { getGeneralTools, getGeneralInstructions } from './general-tools';
 
 export * from './types';
@@ -11,8 +10,7 @@ export * from './types';
 export const skillRegistry: Map<SkillType, SkillHandler> = new Map([
   ['markdown', markdownSkill],
   ['mermaid', mermaidSkill],
-  ['image-url', imageUrlSkill],
-  ['image-base64', imageBase64Skill],
+  ['image', imageSkill],
 ]);
 
 // Get skill handler by type
@@ -28,8 +26,8 @@ export function getSkillHandler(type: SkillType): SkillHandler {
 export function getAllTools(api: ScratchpadAPI, scratchpadFunctions: any): ToolDefinition[] {
   const tools: ToolDefinition[] = [];
 
-  // Add general scratchpad tools (including image tools)
-  tools.push(...getGeneralTools(scratchpadFunctions, api, getSkillHandler));
+  // Add general scratchpad tools
+  tools.push(...getGeneralTools(scratchpadFunctions));
 
   // Collect tools from each skill
   for (const [_, handler] of skillRegistry) {

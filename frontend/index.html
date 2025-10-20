@@ -229,12 +229,55 @@
             background: white;
         }
 
-        .image-url-skill {
+        .image-skill {
             border-left-color: #ed8936;
         }
 
-        .image-base64-skill {
-            border-left-color: #9f7aea;
+        /* Image Gallery Styles */
+        .image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            padding: 0.5rem;
+        }
+
+        .gallery-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .gallery-image-wrapper {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .gallery-image-wrapper:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .gallery-image-wrapper img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .image-index {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.3rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: monospace;
+            backdrop-filter: blur(4px);
         }
 
         /* Markdown styles */

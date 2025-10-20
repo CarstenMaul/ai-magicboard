@@ -1,0 +1,641 @@
+import { Skill, SkillHandler, ScratchpadAPI, ToolDefinition } from './types';
+
+// Detect if content is a data URI (base64) or a URL
+function isDataURI(content: string): boolean {
+  return content.startsWith('data:');
+}
+
+// Generate style attribute for image sizing
+function getImageStyle(img: { displaySize?: number; displayWidth?: number; displayHeight?: number }): string {
+  if (img.displayWidth) {
+    return `style="width: ${img.displayWidth}px; height: auto;"`;
+  }
+  if (img.displayHeight) {
+    return `style="height: ${img.displayHeight}px; width: auto;"`;
+  }
+  if (img.displaySize) {
+    return `style="width: ${img.displaySize}%;"`;
+  }
+  return '';
+}
+
+// Optimize and convert image to JPEG for AI viewing
+async function optimizeImageForAI(imageUrl: string): Promise<{ mimeType: string; base64Data: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // Enable CORS for cross-origin images
+
+    img.onload = () => {
+      // Create a canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      // Calculate new dimensions (max 800x800, maintain aspect ratio)
+      const maxSize = 800;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = (height / width) * maxSize;
+          width = maxSize;
+        } else {
+          width = (width / height) * maxSize;
+          height = maxSize;
+        }
+      }
+
+      // Set canvas size
+      canvas.width = width;
+      canvas.height = height;
+
+      // Draw image on canvas
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to JPEG with quality reduction (0.7 = 70% quality)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+
+      if (match) {
+        resolve({
+          mimeType: match[1],
+          base64Data: match[2],
+        });
+      } else {
+        reject(new Error('Failed to convert canvas to base64'));
+      }
+    };
+
+    img.onerror = () => {
+      reject(new Error('Failed to load image'));
+    };
+
+    img.src = imageUrl;
+  });
+}
+
+export const imageSkill: SkillHandler = {
+  type: 'image',
+  canResize: true,
+
+  render: async (skill: Skill): Promise<string> => {
+    // Check if this is a gallery or single image
+    if (skill.gallery && skill.gallery.length > 0) {
+      // Render as gallery
+      const imagesHtml = skill.gallery.map(img => {
+        const alt = img.altText || `Image ${img.index}`;
+        const sizeStyle = getImageStyle(img);
+        return `
+          <div class="gallery-item">
+            <div class="gallery-image-wrapper">
+              <img src="${img.content}" alt="${alt}" ${sizeStyle} />
+              <div class="image-index">${img.index}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="skill-content image-skill">
+          <div class="image-gallery">
+            ${imagesHtml}
+          </div>
+        </div>
+      `;
+    } else {
+      // Render single image (backward compatible)
+      const alt = skill.altText || 'Image';
+      const sizeStyle = getImageStyle(skill);
+      return `
+        <div class="skill-content image-skill">
+          <img src="${skill.content}" alt="${alt}" ${sizeStyle} />
+        </div>
+      `;
+    }
+  },
+
+  generateDescription: (skill: Skill): string => {
+    if (skill.gallery && skill.gallery.length > 0) {
+      return `Gallery with ${skill.gallery.length} image${skill.gallery.length > 1 ? 's' : ''}`;
+    }
+    const isBase64 = isDataURI(skill.content);
+    if (isBase64) {
+      return skill.altText || 'Base64 Image';
+    }
+    return skill.altText || skill.content.substring(0, 40) + (skill.content.length > 40 ? '...' : '');
+  },
+
+  getBase64: async (skill: Skill) => {
+    // For single images, handle based on content type
+    if (!skill.gallery || skill.gallery.length === 0) {
+      if (isDataURI(skill.content)) {
+        // Extract base64 data from data URI
+        const match = skill.content.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match) {
+          throw new Error('Invalid base64 data URI format');
+        }
+
+        return {
+          skillId: skill.id,
+          type: 'image',
+          mimeType: match[1],
+          base64Data: match[2],
+          altText: skill.altText,
+        };
+      } else {
+        // Optimize and convert image URL to JPEG
+        const { mimeType, base64Data } = await optimizeImageForAI(skill.content);
+
+        return {
+          skillId: skill.id,
+          type: 'image',
+          url: skill.content,
+          mimeType: mimeType,
+          base64Data: base64Data,
+          altText: skill.altText,
+          optimized: true,
+          format: 'JPEG (70% quality, max 800x800)',
+        };
+      }
+    }
+
+    // For galleries, this would need to handle multiple images
+    throw new Error('Use get_gallery_image_base64 for gallery images');
+  },
+
+  getTools: (api: ScratchpadAPI): ToolDefinition[] => {
+    return [
+      {
+        name: 'get_image_base64',
+        description: 'Gets an image skill as base64-encoded data so you can "look at" and analyze it. For URL images, fetches and optimizes to JPEG (70% quality, max 800x800px). For base64 images, returns existing data. For single images only.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image to view (e.g., "skill-1")',
+            },
+          },
+          required: ['skill_id'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          try {
+            const result = await imageSkill.getBase64!(skill);
+            return JSON.stringify(result, null, 2);
+          } catch (error) {
+            return `Error getting base64: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          }
+        },
+      },
+      {
+        name: 'set_image_size',
+        description: 'Sets the display size of an image skill as a percentage. Does not re-encode the image, only changes how it is displayed. 100 = original size, 50 = half size, 200 = double size. Applies to single images or all images in a gallery.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image to resize (e.g., "skill-1")',
+            },
+            size_percentage: {
+              type: 'number',
+              description: 'The display size as a percentage (10-500). Examples: 50 = half size, 100 = original, 200 = double',
+            },
+          },
+          required: ['skill_id', 'size_percentage'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (input.size_percentage < 10 || input.size_percentage > 500) {
+            return `Invalid size percentage: ${input.size_percentage}. Must be between 10 and 500.`;
+          }
+
+          // Apply to all gallery images if gallery exists
+          if (skill.gallery && skill.gallery.length > 0) {
+            skill.gallery.forEach(img => {
+              img.displaySize = input.size_percentage;
+              delete img.displayWidth;
+              delete img.displayHeight;
+            });
+            api.updateUI();
+            api.showToast(`All ${skill.gallery.length} images resized to ${input.size_percentage}%`);
+            return `All ${skill.gallery.length} gallery images resized to ${input.size_percentage}%`;
+          } else {
+            // Apply to single image
+            skill.displaySize = input.size_percentage;
+            delete skill.displayWidth;
+            delete skill.displayHeight;
+            api.updateUI();
+            api.showToast(`Image size set to ${input.size_percentage}%`);
+            return `Skill ${input.skill_id} display size set to ${input.size_percentage}%`;
+          }
+        },
+      },
+      {
+        name: 'set_image_width',
+        description: 'Sets the display width of an image skill in pixels, maintaining aspect ratio. Applies to single images or all images in a gallery.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image to resize (e.g., "skill-1")',
+            },
+            width_px: {
+              type: 'number',
+              description: 'The display width in pixels (50-2000). Example: 300',
+            },
+          },
+          required: ['skill_id', 'width_px'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (input.width_px < 50 || input.width_px > 2000) {
+            return `Invalid width: ${input.width_px}. Must be between 50 and 2000 pixels.`;
+          }
+
+          // Apply to all gallery images if gallery exists
+          if (skill.gallery && skill.gallery.length > 0) {
+            skill.gallery.forEach(img => {
+              img.displayWidth = input.width_px;
+              delete img.displaySize;
+              delete img.displayHeight;
+            });
+            api.updateUI();
+            api.showToast(`All ${skill.gallery.length} images resized to ${input.width_px}px width`);
+            return `All ${skill.gallery.length} gallery images resized to ${input.width_px}px width (aspect ratio maintained)`;
+          } else {
+            // Apply to single image
+            skill.displayWidth = input.width_px;
+            delete skill.displaySize;
+            delete skill.displayHeight;
+            api.updateUI();
+            api.showToast(`Image width set to ${input.width_px}px`);
+            return `Skill ${input.skill_id} width set to ${input.width_px}px (aspect ratio maintained)`;
+          }
+        },
+      },
+      {
+        name: 'set_image_height',
+        description: 'Sets the display height of an image skill in pixels, maintaining aspect ratio. Applies to single images or all images in a gallery.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image to resize (e.g., "skill-1")',
+            },
+            height_px: {
+              type: 'number',
+              description: 'The display height in pixels (50-2000). Example: 300',
+            },
+          },
+          required: ['skill_id', 'height_px'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (input.height_px < 50 || input.height_px > 2000) {
+            return `Invalid height: ${input.height_px}. Must be between 50 and 2000 pixels.`;
+          }
+
+          // Apply to all gallery images if gallery exists
+          if (skill.gallery && skill.gallery.length > 0) {
+            skill.gallery.forEach(img => {
+              img.displayHeight = input.height_px;
+              delete img.displaySize;
+              delete img.displayWidth;
+            });
+            api.updateUI();
+            api.showToast(`All ${skill.gallery.length} images resized to ${input.height_px}px height`);
+            return `All ${skill.gallery.length} gallery images resized to ${input.height_px}px height (aspect ratio maintained)`;
+          } else {
+            // Apply to single image
+            skill.displayHeight = input.height_px;
+            delete skill.displaySize;
+            delete skill.displayWidth;
+            api.updateUI();
+            api.showToast(`Image height set to ${input.height_px}px`);
+            return `Skill ${input.skill_id} height set to ${input.height_px}px (aspect ratio maintained)`;
+          }
+        },
+      },
+      {
+        name: 'add_image_to_gallery',
+        description: 'Adds an image to an image skill\'s gallery. If the skill doesn\'t have a gallery yet, initializes one. Accepts both URLs and base64 data URIs.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+            content: {
+              type: 'string',
+              description: 'Either a URL or a data URI (data:image/png;base64,...)',
+            },
+            alt_text: {
+              type: 'string',
+              description: 'Optional alt text for the image',
+            },
+          },
+          required: ['skill_id', 'content'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+
+          // Initialize gallery if it doesn't exist
+          if (!skill.gallery) {
+            skill.gallery = [];
+            // Preserve the original single image as the first gallery item
+            if (skill.content) {
+              skill.gallery.push({
+                index: 1,
+                content: skill.content,
+                altText: skill.altText,
+                displaySize: skill.displaySize,
+              });
+            }
+          }
+
+          // Find next index
+          const nextIndex = skill.gallery.length > 0
+            ? Math.max(...skill.gallery.map(img => img.index)) + 1
+            : 1;
+
+          // Add new image
+          skill.gallery.push({
+            index: nextIndex,
+            content: input.content,
+            altText: input.alt_text,
+          });
+
+          api.updateUI();
+          api.showToast(`Image ${nextIndex} added to gallery`);
+          return `Image added to gallery at index ${nextIndex}. Gallery now has ${skill.gallery.length} image(s).`;
+        },
+      },
+      {
+        name: 'remove_image_from_gallery',
+        description: 'Removes an image from an image skill\'s gallery by its index.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+            image_index: {
+              type: 'number',
+              description: 'The index of the image to remove',
+            },
+          },
+          required: ['skill_id', 'image_index'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (!skill.gallery || skill.gallery.length === 0) {
+            return `Skill ${input.skill_id} has no gallery images`;
+          }
+
+          const imageIndex = skill.gallery.findIndex(img => img.index === input.image_index);
+          if (imageIndex === -1) {
+            return `Image with index ${input.image_index} not found in gallery`;
+          }
+
+          skill.gallery.splice(imageIndex, 1);
+          api.updateUI();
+          api.showToast(`Image ${input.image_index} removed from gallery`);
+          return `Image ${input.image_index} removed. Gallery now has ${skill.gallery.length} image(s).`;
+        },
+      },
+      {
+        name: 'set_gallery_image_size',
+        description: 'Sets the display size of a specific image in a gallery as a percentage. Does not re-encode the image, only changes how it is displayed.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+            image_index: {
+              type: 'number',
+              description: 'The index of the image to resize',
+            },
+            size_percentage: {
+              type: 'number',
+              description: 'The display size as a percentage (10-500). Examples: 50 = half size, 100 = original, 200 = double',
+            },
+          },
+          required: ['skill_id', 'image_index', 'size_percentage'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (!skill.gallery || skill.gallery.length === 0) {
+            return `Skill ${input.skill_id} has no gallery images`;
+          }
+
+          const image = skill.gallery.find(img => img.index === input.image_index);
+          if (!image) {
+            return `Image with index ${input.image_index} not found in gallery`;
+          }
+
+          if (input.size_percentage < 10 || input.size_percentage > 500) {
+            return `Invalid size percentage: ${input.size_percentage}. Must be between 10 and 500.`;
+          }
+
+          image.displaySize = input.size_percentage;
+          api.updateUI();
+          api.showToast(`Image ${input.image_index} size set to ${input.size_percentage}%`);
+          return `Gallery image ${input.image_index} display size set to ${input.size_percentage}%`;
+        },
+      },
+      {
+        name: 'read_gallery_images',
+        description: 'Lists all images in an image skill\'s gallery with their indices and metadata.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+          },
+          required: ['skill_id'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (!skill.gallery || skill.gallery.length === 0) {
+            return `Skill ${input.skill_id} has no gallery images`;
+          }
+
+          const images = skill.gallery.map(img => ({
+            index: img.index,
+            altText: img.altText,
+            displaySize: img.displaySize || 100,
+            contentPreview: img.content.substring(0, 50) + '...',
+          }));
+
+          return JSON.stringify({
+            skillId: input.skill_id,
+            totalImages: skill.gallery.length,
+            images,
+          }, null, 2);
+        },
+      },
+      {
+        name: 'get_gallery_image_base64',
+        description: 'Gets a specific image from a gallery as base64-encoded data. For URL images, fetches and optimizes to JPEG. For base64 images, returns existing data.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+            image_index: {
+              type: 'number',
+              description: 'The index of the image to view',
+            },
+          },
+          required: ['skill_id', 'image_index'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+          if (!skill.gallery || skill.gallery.length === 0) {
+            return `Skill ${input.skill_id} has no gallery images`;
+          }
+
+          const image = skill.gallery.find(img => img.index === input.image_index);
+          if (!image) {
+            return `Image with index ${input.image_index} not found in gallery`;
+          }
+
+          try {
+            if (isDataURI(image.content)) {
+              // Extract base64 data from data URI
+              const match = image.content.match(/^data:([^;]+);base64,(.+)$/);
+              if (!match) {
+                throw new Error('Invalid base64 data URI format');
+              }
+
+              return JSON.stringify({
+                skillId: skill.id,
+                imageIndex: input.image_index,
+                type: 'image',
+                mimeType: match[1],
+                base64Data: match[2],
+                altText: image.altText,
+              }, null, 2);
+            } else {
+              // Optimize and convert image URL to JPEG
+              const { mimeType, base64Data } = await optimizeImageForAI(image.content);
+
+              return JSON.stringify({
+                skillId: skill.id,
+                imageIndex: input.image_index,
+                type: 'image',
+                url: image.content,
+                mimeType: mimeType,
+                base64Data: base64Data,
+                altText: image.altText,
+                optimized: true,
+                format: 'JPEG (70% quality, max 800x800)',
+              }, null, 2);
+            }
+          } catch (error) {
+            return `Error getting base64: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          }
+        },
+      },
+    ];
+  },
+
+  getInstructions: (): string => {
+    return `- 'image': Images from URLs or base64 data URIs. Supports both single images and galleries.
+  * For single images: Use create_skill with type='image' and content=URL or data URI
+  * For galleries: Use add_image_to_gallery to add multiple images to one skill
+  * URL images are optimized to JPEG (70% quality, max 800x800px) when viewed by AI
+  * Gallery images are indexed and displayed in a grid with index numbers in corners
+
+  Image Resizing (applies to single images or ALL images in a gallery):
+  * set_image_size: Resize by percentage (50 = half, 100 = original, 200 = double)
+  * set_image_width: Resize to specific width in pixels (maintains aspect ratio)
+  * set_image_height: Resize to specific height in pixels (maintains aspect ratio)
+  * set_gallery_image_size: Resize a specific gallery image by index and percentage
+
+  Individual Gallery Image Operations:
+  * remove_image_from_gallery: Remove specific image by index
+  * read_gallery_images: List all images with their indices
+  * get_gallery_image_base64: View specific gallery image by index`;
+  },
+};

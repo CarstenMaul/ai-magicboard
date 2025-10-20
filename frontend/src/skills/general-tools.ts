@@ -1,4 +1,4 @@
-import { ToolDefinition, ScratchpadAPI } from './types';
+import { ToolDefinition } from './types';
 
 // General scratchpad tools that aren't skill-specific
 export function getGeneralTools(
@@ -11,25 +11,23 @@ export function getGeneralTools(
     moveRowUp: (skillId: string) => string;
     moveRowDown: (skillId: string) => string;
     clearScratchpad: () => string;
-  },
-  api: ScratchpadAPI,
-  getSkillHandler: (type: any) => any
+  }
 ): ToolDefinition[] {
   return [
     {
       name: 'create_skill',
-      description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image-url" for images from URL, "image-base64" for base64-encoded images.',
+      description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image" for images from URL or base64 data URI.',
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
-            enum: ['markdown', 'mermaid', 'image-url', 'image-base64'],
-            description: 'The type of skill: "markdown", "mermaid", "image-url", or "image-base64"',
+            enum: ['markdown', 'mermaid', 'image'],
+            description: 'The type of skill: "markdown", "mermaid", or "image"',
           },
           content: {
             type: 'string',
-            description: 'For markdown/mermaid: the text content. For image-url: the URL. For image-base64: the data URI (data:image/png;base64,...)',
+            description: 'For markdown/mermaid: the text content. For image: a URL or data URI (data:image/png;base64,...)',
           },
           alt_text: {
             type: 'string',
@@ -165,76 +163,6 @@ export function getGeneralTools(
       },
       execute: async () => {
         return scratchpadFunctions.clearScratchpad();
-      },
-    },
-    {
-      name: 'get_image_base64',
-      description: 'Gets an image skill (image-url or image-base64) as base64-encoded data so you can "look at" and analyze it. For image-url skills, fetches and optimizes to JPEG (70% quality, max 800x800px). For image-base64 skills, returns existing data.',
-      parameters: {
-        type: 'object',
-        properties: {
-          skill_id: {
-            type: 'string',
-            description: 'The skill ID of the image to view (e.g., "skill-1")',
-          },
-        },
-        required: ['skill_id'],
-        additionalProperties: true,
-      },
-      execute: async (input: any) => {
-        const skill = api.getSkillById(input.skill_id);
-        if (!skill) {
-          return `Skill ${input.skill_id} not found`;
-        }
-        if (skill.type !== 'image-url' && skill.type !== 'image-base64') {
-          return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
-        }
-        try {
-          const handler = getSkillHandler(skill.type);
-          if (!handler.getBase64) {
-            return `Skill ${input.skill_id} does not support base64 conversion`;
-          }
-          const result = await handler.getBase64(skill);
-          return JSON.stringify(result, null, 2);
-        } catch (error) {
-          return `Error getting base64: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        }
-      },
-    },
-    {
-      name: 'set_image_size',
-      description: 'Sets the display size of an image skill (image-url or image-base64) as a percentage. Does not re-encode the image, only changes how it is displayed. 100 = original size, 50 = half size, 200 = double size.',
-      parameters: {
-        type: 'object',
-        properties: {
-          skill_id: {
-            type: 'string',
-            description: 'The skill ID of the image to resize (e.g., "skill-1")',
-          },
-          size_percentage: {
-            type: 'number',
-            description: 'The display size as a percentage (10-500). Examples: 50 = half size, 100 = original, 200 = double',
-          },
-        },
-        required: ['skill_id', 'size_percentage'],
-        additionalProperties: true,
-      },
-      execute: async (input: any) => {
-        const skill = api.getSkillById(input.skill_id);
-        if (!skill) {
-          return `Skill ${input.skill_id} not found`;
-        }
-        const handler = getSkillHandler(skill.type);
-        if (!handler.canResize) {
-          return `Skill ${input.skill_id} does not support resizing (type: ${skill.type})`;
-        }
-        if (input.size_percentage < 10 || input.size_percentage > 500) {
-          return `Invalid size percentage: ${input.size_percentage}. Must be between 10 and 500.`;
-        }
-        skill.displaySize = input.size_percentage;
-        api.updateUI();
-        api.showToast(`Image size set to ${input.size_percentage}%`);
-        return `Skill ${input.skill_id} display size set to ${input.size_percentage}%`;
       },
     },
   ];

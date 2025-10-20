@@ -261,7 +261,7 @@ async function connectAgent(): Promise<void> {
               const altText = `${mcpTool.name} result ${i + 1}`;
               const mime = img.mimeType || 'image/png';
               const dataUri = `data:${mime};base64,${img.data}`;
-              createSkill('image-base64', dataUri, altText);
+              createSkill('image', dataUri, altText);
               console.log(`Auto-added image ${i + 1} to scratchpad from ${mcpTool.name}`);
             }
 
@@ -356,7 +356,7 @@ You also have access to MCP (Model Context Protocol) tools from configured serve
         }),
         tool({
           name: 'google_image_search',
-          description: 'Search Google Images for image URLs. Returns image links with dimensions that can be displayed using create_skill with type="image-url".',
+          description: 'Search Google Images for image URLs. Returns image links with dimensions that can be displayed using create_skill with type="image".',
           parameters: {
             type: 'object',
             properties: {

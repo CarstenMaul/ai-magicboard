@@ -1,5 +1,15 @@
 // Skill types
-export type SkillType = 'markdown' | 'mermaid' | 'image-url' | 'image-base64';
+export type SkillType = 'markdown' | 'mermaid' | 'image';
+
+// Gallery image interface
+export interface GalleryImage {
+  index: number;
+  content: string; // URL for image-url, data URI for image-base64
+  altText?: string;
+  displaySize?: number; // Percentage (100 = original size)
+  displayWidth?: number; // Width in pixels (keeps aspect ratio)
+  displayHeight?: number; // Height in pixels (keeps aspect ratio)
+}
 
 // Skill interface
 export interface Skill {
@@ -7,7 +17,10 @@ export interface Skill {
   type: SkillType;
   content: string;
   altText?: string;
-  displaySize?: number;
+  displaySize?: number; // Percentage (100 = original size)
+  displayWidth?: number; // Width in pixels (keeps aspect ratio)
+  displayHeight?: number; // Height in pixels (keeps aspect ratio)
+  gallery?: GalleryImage[]; // Optional gallery mode for image skills
 }
 
 // Tool definition interface
