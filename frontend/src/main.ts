@@ -79,9 +79,9 @@ async function updateScratchpadUI(): Promise<void> {
   }
 
   // Scroll to bottom after all content is fully rendered
-  const scratchpadPanel = document.querySelector('.scratchpad-panel') as HTMLElement;
-  if (scratchpadPanel) {
-    scratchpadPanel.scrollTop = scratchpadPanel.scrollHeight;
+  const mainContainer = document.querySelector('.main-container') as HTMLElement;
+  if (mainContainer) {
+    mainContainer.scrollTop = mainContainer.scrollHeight;
   }
 }
 
@@ -182,34 +182,6 @@ async function performWebSearch(query: string): Promise<string> {
   }
 }
 
-function downloadScratchpad(): void {
-  if (scratchpadContent.trim() === '') {
-    showToast('Scratchpad is empty');
-    return;
-  }
-
-  // Create a blob with the markdown content
-  const blob = new Blob([scratchpadContent], { type: 'text/markdown;charset=utf-8' });
-
-  // Create a temporary download link
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-
-  // Generate filename with timestamp
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-  link.download = `scratchpad-${timestamp}.md`;
-
-  // Trigger download
-  document.body.appendChild(link);
-  link.click();
-
-  // Cleanup
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-
-  showToast('Downloaded scratchpad');
-}
 
 async function performGoogleSearch(query: string, numResults: number = 5): Promise<string> {
   try {
@@ -414,53 +386,7 @@ async function connectAgent(): Promise<void> {
               console.log(`Auto-added image ${i + 1} to scratchpad from ${mcpTool.name}`);
             }
 
-            // Send images to the model using the correct Realtime API format
-            let imageSentToModel = false;
-            if (dataChannel && dataChannel.readyState === 'open') {
-              try {
-                // Create input_image content for each image
-                const imageContent = result.images.map((img: any) => {
-                  // Extract format from mimeType (e.g., "image/jpeg" -> "jpeg")
-                  const format = img.mimeType.split('/')[1] || 'png';
-                  return {
-                    type: 'input_image',
-                    image_url: `data:image/${format};base64,${img.data}`
-                  };
-                });
-
-                // Add conversation item with images
-                const conversationEvent = {
-                  type: 'conversation.item.create',
-                  item: {
-                    type: 'message',
-                    role: 'user',
-                    content: imageContent
-                  }
-                };
-
-                dataChannel.send(JSON.stringify(conversationEvent));
-                console.log(`✓ Sent ${result.images.length} image(s) to Realtime model`);
-
-                // Trigger response from model
-                const responseEvent = {
-                  type: 'response.create'
-                };
-                dataChannel.send(JSON.stringify(responseEvent));
-                console.log('✓ Triggered model response for image analysis');
-
-                imageSentToModel = true;
-              } catch (error) {
-                console.error('❌ Failed to send images to model:', error);
-              }
-            } else {
-              console.warn('⚠️ DataChannel not available to send images to model');
-            }
-
-            if (imageSentToModel) {
-              return `Screenshot captured successfully. ${result.images.length} image(s) added to scratchpad and sent to model. The model will analyze the image and respond.`;
-            } else {
-              return `${textResult}\n\nNote: ${result.images.length} image(s) added to scratchpad but could not be sent to model (dataChannel not ready).`;
-            }
+            return `${textResult}. ${result.images.length} image(s) added to scratchpad.`;
           }
 
           return result;
@@ -892,7 +818,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const connectButton = document.getElementById('connectButton');
   const disconnectButton = document.getElementById('disconnectButton');
   const muteButton = document.getElementById('muteButton');
-  const downloadButton = document.getElementById('downloadButton');
 
   if (connectButton) {
     connectButton.addEventListener('click', connectAgent);
@@ -904,10 +829,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (muteButton) {
     muteButton.addEventListener('click', toggleMute);
-  }
-
-  if (downloadButton) {
-    downloadButton.addEventListener('click', downloadScratchpad);
   }
 
   // Add keyboard listener for mute toggle
@@ -925,4 +846,100 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   console.log(`Mute toggle key configured: ${MUTE_TOGGLE_KEY}`);
+
+  // Initialize draggable controls panel
+  initializeDraggableControls();
 });
+
+// Draggable controls panel functionality with touch support
+function initializeDraggableControls(): void {
+  const controlsPanel = document.getElementById('controlsPanel');
+  if (!controlsPanel) {
+    console.error('Controls panel not found');
+    return;
+  }
+
+  let isDragging = false;
+  let currentX = 0;
+  let currentY = 0;
+  let initialX = 0;
+  let initialY = 0;
+  let xOffset = 0;
+  let yOffset = 0;
+
+  // Mouse events
+  controlsPanel.addEventListener('mousedown', dragStart);
+  document.addEventListener('mousemove', drag);
+  document.addEventListener('mouseup', dragEnd);
+
+  // Touch events
+  controlsPanel.addEventListener('touchstart', touchStart, { passive: false });
+  document.addEventListener('touchmove', touchMove, { passive: false });
+  document.addEventListener('touchend', touchEnd);
+
+  function dragStart(e: MouseEvent): void {
+    // Prevent dragging if clicking on buttons
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON' || target.closest('button')) {
+      return;
+    }
+
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+
+    isDragging = true;
+  }
+
+  function touchStart(e: TouchEvent): void {
+    // Prevent dragging if touching buttons
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON' || target.closest('button')) {
+      return;
+    }
+
+    const touch = e.touches[0];
+    initialX = touch.clientX - xOffset;
+    initialY = touch.clientY - yOffset;
+
+    isDragging = true;
+  }
+
+  function drag(e: MouseEvent): void {
+    if (!isDragging) return;
+
+    e.preventDefault();
+    currentX = e.clientX - initialX;
+    currentY = e.clientY - initialY;
+
+    xOffset = currentX;
+    yOffset = currentY;
+
+    setTranslate(currentX, currentY, controlsPanel as HTMLElement);
+  }
+
+  function touchMove(e: TouchEvent): void {
+    if (!isDragging) return;
+
+    e.preventDefault();
+    const touch = e.touches[0];
+    currentX = touch.clientX - initialX;
+    currentY = touch.clientY - initialY;
+
+    xOffset = currentX;
+    yOffset = currentY;
+
+    setTranslate(currentX, currentY, controlsPanel as HTMLElement);
+  }
+
+  function dragEnd(): void {
+    isDragging = false;
+  }
+
+  function touchEnd(): void {
+    isDragging = false;
+  }
+
+  function setTranslate(xPos: number, yPos: number, el: HTMLElement): void {
+    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+  }
+}

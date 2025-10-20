@@ -1,1 +1,2 @@
 - The name of the project is AI Magicboard.
+- python is in backend/venv/Scripts
