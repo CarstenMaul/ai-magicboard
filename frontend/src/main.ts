@@ -1,17 +1,9 @@
 import { RealtimeAgent, RealtimeSession } from '@openai/agents-realtime';
 import { tool } from '@openai/agents-core';
 import {
-  clearScratchpad,
   resetScratchpad,
-  createContainer,
-  readContainer,
-  readAllContainers,
-  updateContainer,
-  deleteContainer,
-  moveRowUp,
-  moveRowDown,
-  getImageBase64,
-  setImageSize,
+  createSkill,
+  getScratchpadTools,
   showToast,
 } from './scratchpad';
 
@@ -269,7 +261,7 @@ async function connectAgent(): Promise<void> {
               const altText = `${mcpTool.name} result ${i + 1}`;
               const mime = img.mimeType || 'image/png';
               const dataUri = `data:${mime};base64,${img.data}`;
-              createContainer('image-base64', dataUri, altText);
+              createSkill('image-base64', dataUri, altText);
               console.log(`Auto-added image ${i + 1} to scratchpad from ${mcpTool.name}`);
             }
 
@@ -287,6 +279,12 @@ async function connectAgent(): Promise<void> {
       console.log('No MCP tools available');
     }
 
+    // Get dynamically assembled scratchpad tools and instructions
+    const { tools: scratchpadTools, instructions: scratchpadInstructions } = getScratchpadTools();
+
+    // Wrap scratchpad tools with the tool() function from @openai/agents-core
+    const wrappedScratchpadTools = scratchpadTools.map((t: any) => tool(t));
+
     // Create the agent with scratchpad tools and MCP tools
     agent = new RealtimeAgent({
       name: 'Assistant',
@@ -294,49 +292,7 @@ async function connectAgent(): Promise<void> {
 
 You have access to several powerful tools:
 
-**Scratchpad Container Tools:**
-The scratchpad uses a row-based layout where each container is displayed in its own row with a unique container ID.
-
-- create_container: Creates a new container in a new row. Types: 'markdown', 'mermaid', 'image-url', 'image-base64'
-- read_container: Reads a specific container by container ID
-- read_all_containers: Lists all containers with their IDs, row numbers, types, and descriptions
-- update_container: Updates an existing container's content by container ID
-- delete_container: Deletes a container by container ID
-- move_row_up: Moves a container up one position (swaps with the row above)
-- move_row_down: Moves a container down one position (swaps with the row below)
-- get_image_base64: Gets an image as base64 data so you can view and analyze it (works for both image-url and image-base64)
-- set_image_size: Sets the display size of an image as a percentage (50 = half size, 100 = original, 200 = double)
-- clear_scratchpad: Clears all containers from the scratchpad
-
-**Image Containers:**
-There are TWO types of image containers:
-1. 'image-url': For images from URLs (the URL is stored)
-2. 'image-base64': For base64-encoded images (data URI is stored)
-
-To view/analyze an image, use get_image_base64 which returns the base64 data that you can process.
-To change the display size of an image, use set_image_size (does not re-encode, only changes visual size).
-
-Each row displays:
-- Row number (e.g., "Row 1")
-- Container ID with type (e.g., "container-1 [image-url]")
-- Short content description
-- Up/Down buttons to reorder rows
-
-Use the scratchpad to:
-- Take notes about important information from the conversation
-- Create todo lists or structured outlines
-- Keep track of context across multiple topics
-- Organize your thoughts when solving complex problems
-- Create visual diagrams using Mermaid (use type='mermaid' for diagrams)
-- Display images from URLs to show visual content to the user
-- Update or delete specific containers using their container IDs
-
-Mermaid diagram example (use create_container with type='mermaid'):
-\`\`\`mermaid
-graph TD
-    A[Start] --> B[Process]
-    B --> C[End]
-\`\`\`
+${scratchpadInstructions}
 
 **Search Tools:**
 - web_search: Search using OpenAI's web search for current information with citations
@@ -355,207 +311,7 @@ The scratchpad is visible to the user in real-time on their screen with rendered
 You also have access to MCP (Model Context Protocol) tools from configured servers. These tools are dynamically loaded and provide additional capabilities.`,
       tools: [
         ...mcpToolDefinitions,
-        tool({
-          name: 'clear_scratchpad',
-          description: 'Clears all content from the scratchpad',
-          parameters: {
-            type: 'object',
-            properties: {},
-            required: [],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async () => {
-            return clearScratchpad();
-          },
-        }),
-        tool({
-          name: 'create_container',
-          description: 'Creates a new container in a new row. Container types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image-url" for images from URL, "image-base64" for base64-encoded images.',
-          parameters: {
-            type: 'object',
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['markdown', 'mermaid', 'image-url', 'image-base64'],
-                description: 'The type of container: "markdown", "mermaid", "image-url", or "image-base64"',
-              },
-              content: {
-                type: 'string',
-                description: 'For markdown/mermaid: the text content. For image-url: the URL. For image-base64: the data URI (data:image/png;base64,...)',
-              },
-              alt_text: {
-                type: 'string',
-                description: 'Optional alt text for images',
-              },
-            },
-            required: ['type', 'content'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return createContainer(input.type, input.content, input.alt_text);
-          },
-        }),
-        tool({
-          name: 'read_container',
-          description: 'Reads a specific container by its container ID. Returns the container details including row number, type, and content.',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID (e.g., "container-1")',
-              },
-            },
-            required: ['container_id'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return readContainer(input.container_id);
-          },
-        }),
-        tool({
-          name: 'read_all_containers',
-          description: 'Lists all containers in the scratchpad with their row numbers, container IDs, types, and content previews.',
-          parameters: {
-            type: 'object',
-            properties: {},
-            required: [],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async () => {
-            return readAllContainers();
-          },
-        }),
-        tool({
-          name: 'update_container',
-          description: 'Updates an existing container\'s content by its container ID.',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID to update (e.g., "container-1")',
-              },
-              content: {
-                type: 'string',
-                description: 'The new content for the container',
-              },
-              alt_text: {
-                type: 'string',
-                description: 'Optional new alt text for image containers',
-              },
-            },
-            required: ['container_id', 'content'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return updateContainer(input.container_id, input.content, input.alt_text);
-          },
-        }),
-        tool({
-          name: 'delete_container',
-          description: 'Deletes a container by its container ID.',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID to delete (e.g., "container-1")',
-              },
-            },
-            required: ['container_id'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return deleteContainer(input.container_id);
-          },
-        }),
-        tool({
-          name: 'move_row_up',
-          description: 'Moves a container up one position (swaps with the row above it).',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID to move up (e.g., "container-1")',
-              },
-            },
-            required: ['container_id'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return moveRowUp(input.container_id);
-          },
-        }),
-        tool({
-          name: 'move_row_down',
-          description: 'Moves a container down one position (swaps with the row below it).',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID to move down (e.g., "container-1")',
-              },
-            },
-            required: ['container_id'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return moveRowDown(input.container_id);
-          },
-        }),
-        tool({
-          name: 'get_image_base64',
-          description: 'Gets an image container as base64-encoded data so you can "look at" and analyze it. Works for both image-url and image-base64 containers. For image-url containers, fetches and converts the image. For image-base64 containers, returns the existing base64 data.',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID of the image to view (e.g., "container-1")',
-              },
-            },
-            required: ['container_id'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return await getImageBase64(input.container_id);
-          },
-        }),
-        tool({
-          name: 'set_image_size',
-          description: 'Sets the display size of an image container as a percentage. Does not re-encode the image, only changes how it is displayed. 100 = original size, 50 = half size, 200 = double size. Works for both image-url and image-base64 containers.',
-          parameters: {
-            type: 'object',
-            properties: {
-              container_id: {
-                type: 'string',
-                description: 'The container ID of the image to resize (e.g., "container-1")',
-              },
-              size_percentage: {
-                type: 'number',
-                description: 'The display size as a percentage (10-500). Examples: 50 = half size, 100 = original, 200 = double',
-              },
-            },
-            required: ['container_id', 'size_percentage'],
-            additionalProperties: true,
-          } as const,
-          strict: false,
-          execute: async (input: any) => {
-            return setImageSize(input.container_id, input.size_percentage);
-          },
-        }),
+        ...wrappedScratchpadTools,
         tool({
           name: 'web_search',
           description: 'Search the internet for current information, news, facts, or data. Returns search results with citations from web sources.',
@@ -600,7 +356,7 @@ You also have access to MCP (Model Context Protocol) tools from configured serve
         }),
         tool({
           name: 'google_image_search',
-          description: 'Search Google Images for image URLs. Returns image links with dimensions that can be displayed using create_container with type="image-url".',
+          description: 'Search Google Images for image URLs. Returns image links with dimensions that can be displayed using create_skill with type="image-url".',
           parameters: {
             type: 'object',
             properties: {

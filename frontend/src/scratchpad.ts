@@ -1,5 +1,5 @@
-import { marked } from 'marked';
 import mermaid from 'mermaid';
+import { Skill, SkillType, getSkillHandler, getAllTools, getAllInstructions } from './skills';
 
 // Initialize mermaid
 mermaid.initialize({
@@ -8,91 +8,29 @@ mermaid.initialize({
   securityLevel: 'loose',
 });
 
-// Container types
-export type ContainerType = 'markdown' | 'mermaid' | 'image-url' | 'image-base64';
-
-// Container interface
-export interface Container {
-  id: string;
-  type: ContainerType;
-  content: string; // For markdown/mermaid: the text content. For image-url: URL. For image-base64: data URI
-  altText?: string; // For images
-  displaySize?: number; // Display size as percentage (100 = original size, 50 = half size, 200 = double size)
-}
+// Re-export for backward compatibility
+export type { Skill, SkillType };
 
 // Row interface
 export interface Row {
   rowNumber: number;
-  container: Container;
+  skill: Skill;
 }
 
 // Scratchpad state
 let rows: Row[] = [];
-let nextContainerId = 1;
+let nextSkillId = 1;
 let nextRowNumber = 1;
 
-// Generate a short description from content
-function generateShortDescription(container: Container): string {
-  const { type, content, altText } = container;
-
-  if (type === 'image-url') {
-    return altText || content.substring(0, 40) + (content.length > 40 ? '...' : '');
-  }
-
-  if (type === 'image-base64') {
-    return altText || 'Base64 Image';
-  }
-
-  // For markdown and mermaid, truncate the content
-  const maxLength = 60;
-  // Remove markdown formatting and newlines for a clean preview
-  const cleanContent = content
-    .replace(/[#*`_~\[\]()]/g, '') // Remove markdown symbols
-    .replace(/\n/g, ' ') // Replace newlines with spaces
-    .trim();
-
-  if (cleanContent.length <= maxLength) {
-    return cleanContent;
-  }
-
-  return cleanContent.substring(0, maxLength) + '...';
+// Generate a short description from skill content
+function generateShortDescription(skill: Skill): string {
+  const handler = getSkillHandler(skill.type);
+  return handler.generateDescription(skill);
 }
 
-async function renderContainer(container: Container): Promise<string> {
-  const { type, content, altText, displaySize } = container;
-
-  if (type === 'markdown') {
-    const html = marked(content) as string;
-    return `
-      <div class="container-content markdown-container">
-        ${html}
-      </div>
-    `;
-  } else if (type === 'mermaid') {
-    return `
-      <div class="container-content mermaid-container">
-        <pre class="mermaid">${content}</pre>
-      </div>
-    `;
-  } else if (type === 'image-url') {
-    const alt = altText || 'Image';
-    const sizeStyle = displaySize ? `style="width: ${displaySize}%;"` : '';
-    return `
-      <div class="container-content image-url-container">
-        <img src="${content}" alt="${alt}" ${sizeStyle} />
-      </div>
-    `;
-  } else if (type === 'image-base64') {
-    const alt = altText || 'Base64 Image';
-    const sizeStyle = displaySize ? `style="width: ${displaySize}%;"` : '';
-    return `
-      <div class="container-content image-base64-container">
-        <img src="${content}" alt="${alt}" ${sizeStyle} />
-      </div>
-    `;
-  }
-
-  return '';
+async function renderSkill(skill: Skill): Promise<string> {
+  const handler = getSkillHandler(skill.type);
+  return await handler.render(skill);
 }
 
 export async function updateScratchpadUI(): Promise<void> {
@@ -108,21 +46,21 @@ export async function updateScratchpadUI(): Promise<void> {
       const row = rows[i];
       const isFirst = i === 0;
       const isLast = i === rows.length - 1;
-      const shortDescription = generateShortDescription(row.container);
+      const shortDescription = generateShortDescription(row.skill);
 
-      const containerHtml = await renderContainer(row.container);
+      const skillHtml = await renderSkill(row.skill);
       html += `
-        <div class="scratchpad-row" data-row="${row.rowNumber}" data-container-id="${row.container.id}">
+        <div class="scratchpad-row" data-row="${row.rowNumber}" data-skill-id="${row.skill.id}">
           <div class="row-header">
             <span class="row-number">Row ${row.rowNumber}</span>
-            <span class="container-id">${row.container.id} [${row.container.type}]</span>
-            <span class="container-description">${shortDescription}</span>
+            <span class="skill-id">${row.skill.id} [${row.skill.type}]</span>
+            <span class="skill-description">${shortDescription}</span>
             <div class="row-controls">
-              <button class="row-btn row-up" data-container-id="${row.container.id}" ${isFirst ? 'disabled' : ''} title="Move row up">▲</button>
-              <button class="row-btn row-down" data-container-id="${row.container.id}" ${isLast ? 'disabled' : ''} title="Move row down">▼</button>
+              <button class="row-btn row-up" data-skill-id="${row.skill.id}" ${isFirst ? 'disabled' : ''} title="Move row up">▲</button>
+              <button class="row-btn row-down" data-skill-id="${row.skill.id}" ${isLast ? 'disabled' : ''} title="Move row down">▼</button>
             </div>
           </div>
-          ${containerHtml}
+          ${skillHtml}
         </div>
         <div class="row-separator"></div>
       `;
@@ -172,9 +110,9 @@ function attachRowControlListeners(): void {
   upButtons.forEach(button => {
     button.addEventListener('click', (e) => {
       e.preventDefault();
-      const containerId = (button as HTMLElement).getAttribute('data-container-id');
-      if (containerId) {
-        moveRowUp(containerId);
+      const skillId = (button as HTMLElement).getAttribute('data-skill-id');
+      if (skillId) {
+        moveRowUp(skillId);
       }
     });
   });
@@ -182,9 +120,9 @@ function attachRowControlListeners(): void {
   downButtons.forEach(button => {
     button.addEventListener('click', (e) => {
       e.preventDefault();
-      const containerId = (button as HTMLElement).getAttribute('data-container-id');
-      if (containerId) {
-        moveRowDown(containerId);
+      const skillId = (button as HTMLElement).getAttribute('data-skill-id');
+      if (skillId) {
+        moveRowDown(skillId);
       }
     });
   });
@@ -201,15 +139,15 @@ export function showToast(message: string): void {
   }, 3000);
 }
 
-// Generate unique container ID
-function generateContainerId(): string {
-  return `container-${nextContainerId++}`;
+// Generate unique skill ID
+function generateSkillId(): string {
+  return `skill-${nextSkillId++}`;
 }
 
-// Create a new container and add it to a new row
-export function createContainer(type: ContainerType, content: string, altText?: string): string {
-  const container: Container = {
-    id: generateContainerId(),
+// Create a new skill and add it to a new row
+export function createSkill(type: SkillType, content: string, altText?: string): string {
+  const skill: Skill = {
+    id: generateSkillId(),
     type,
     content,
     altText,
@@ -217,94 +155,94 @@ export function createContainer(type: ContainerType, content: string, altText?: 
 
   const row: Row = {
     rowNumber: nextRowNumber++,
-    container,
+    skill,
   };
 
   rows.push(row);
   updateScratchpadUI();
-  showToast(`${type} container created`);
+  showToast(`${type} skill created`);
 
-  return `Container created: ${container.id} in row ${row.rowNumber}`;
+  return `Skill created: ${skill.id} in row ${row.rowNumber}`;
 }
 
-// Read a specific container by ID
-export function readContainer(containerId: string): string {
-  const row = rows.find(r => r.container.id === containerId);
+// Read a specific skill by ID
+export function readSkill(skillId: string): string {
+  const row = rows.find(r => r.skill.id === skillId);
 
   if (!row) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
-  const { container } = row;
+  const { skill } = row;
   return JSON.stringify({
-    containerId: container.id,
+    skillId: skill.id,
     rowNumber: row.rowNumber,
-    type: container.type,
-    content: container.content,
-    altText: container.altText,
+    type: skill.type,
+    content: skill.content,
+    altText: skill.altText,
   }, null, 2);
 }
 
-// Read all containers
-export function readAllContainers(): string {
+// Read all skills
+export function readAllSkills(): string {
   if (rows.length === 0) {
-    return 'The scratchpad is empty. No containers.';
+    return 'The scratchpad is empty. No skills.';
   }
 
   const summary = rows.map(row => {
-    const shortDescription = generateShortDescription(row.container);
+    const shortDescription = generateShortDescription(row.skill);
     return {
       row: row.rowNumber,
-      containerId: row.container.id,
-      type: row.container.type,
+      skillId: row.skill.id,
+      type: row.skill.type,
       description: shortDescription,
-      contentLength: row.container.content.length,
+      contentLength: row.skill.content.length,
     };
   });
 
   return JSON.stringify(summary, null, 2);
 }
 
-// Update an existing container
-export function updateContainer(containerId: string, content: string, altText?: string): string {
-  const row = rows.find(r => r.container.id === containerId);
+// Update an existing skill
+export function updateSkill(skillId: string, content: string, altText?: string): string {
+  const row = rows.find(r => r.skill.id === skillId);
 
   if (!row) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
-  row.container.content = content;
+  row.skill.content = content;
   if (altText !== undefined) {
-    row.container.altText = altText;
+    row.skill.altText = altText;
   }
 
   updateScratchpadUI();
-  showToast(`Container ${containerId} updated`);
+  showToast(`Skill ${skillId} updated`);
 
-  return `Container ${containerId} updated successfully`;
+  return `Skill ${skillId} updated successfully`;
 }
 
-// Delete a container by ID
-export function deleteContainer(containerId: string): string {
-  const index = rows.findIndex(r => r.container.id === containerId);
+// Delete a skill by ID
+export function deleteSkill(skillId: string): string {
+  const index = rows.findIndex(r => r.skill.id === skillId);
 
   if (index === -1) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
   const rowNumber = rows[index].rowNumber;
   rows.splice(index, 1);
 
   updateScratchpadUI();
-  showToast(`Container ${containerId} deleted`);
+  showToast(`Skill ${skillId} deleted`);
 
-  return `Container ${containerId} (was in row ${rowNumber}) deleted successfully`;
+  return `Skill ${skillId} (was in row ${rowNumber}) deleted successfully`;
 }
 
-// Clear all containers
+// Clear all skills
 export function clearScratchpad(): string {
   rows = [];
-  nextContainerId = 1;
+  nextSkillId = 1;
   nextRowNumber = 1;
   updateScratchpadUI();
   showToast('Scratchpad cleared');
@@ -314,136 +252,47 @@ export function clearScratchpad(): string {
 // Reset scratchpad without toast (for internal use)
 export function resetScratchpad(): void {
   rows = [];
-  nextContainerId = 1;
+  nextSkillId = 1;
   nextRowNumber = 1;
   updateScratchpadUI();
 }
 
-// Optimize and convert image to JPEG for AI viewing
-async function optimizeImageForAI(imageUrl: string): Promise<{ mimeType: string; base64Data: string }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous'; // Enable CORS for cross-origin images
-
-    img.onload = () => {
-      // Create a canvas
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-
-      // Calculate new dimensions (max 800x800, maintain aspect ratio)
-      const maxSize = 800;
-      let width = img.width;
-      let height = img.height;
-
-      if (width > maxSize || height > maxSize) {
-        if (width > height) {
-          height = (height / width) * maxSize;
-          width = maxSize;
-        } else {
-          width = (width / height) * maxSize;
-          height = maxSize;
-        }
-      }
-
-      // Set canvas size
-      canvas.width = width;
-      canvas.height = height;
-
-      // Draw image on canvas
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Convert to JPEG with quality reduction (0.7 = 70% quality)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-
-      if (match) {
-        resolve({
-          mimeType: match[1],
-          base64Data: match[2],
-        });
-      } else {
-        reject(new Error('Failed to convert canvas to base64'));
-      }
-    };
-
-    img.onerror = () => {
-      reject(new Error('Failed to load image'));
-    };
-
-    img.src = imageUrl;
-  });
-}
-
 // Get image as base64 (for AI to "look" at images)
-export async function getImageBase64(containerId: string): Promise<string> {
-  const row = rows.find(r => r.container.id === containerId);
+export async function getImageBase64(skillId: string): Promise<string> {
+  const row = rows.find(r => r.skill.id === skillId);
 
   if (!row) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
-  const { container } = row;
+  const { skill } = row;
+  const handler = getSkillHandler(skill.type);
 
-  if (container.type !== 'image-url' && container.type !== 'image-base64') {
-    return `Container ${containerId} is not an image container (type: ${container.type})`;
+  if (!handler.getBase64) {
+    return `Skill ${skillId} does not support base64 conversion (type: ${skill.type})`;
   }
 
-  if (container.type === 'image-base64') {
-    // Extract base64 data from data URI
-    const match = container.content.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      return JSON.stringify({
-        containerId: container.id,
-        type: 'image-base64',
-        mimeType: match[1],
-        base64Data: match[2],
-        altText: container.altText,
-      }, null, 2);
-    } else {
-      return `Failed to parse base64 data from container ${containerId}`;
-    }
+  try {
+    const result = await handler.getBase64(skill);
+    return JSON.stringify(result, null, 2);
+  } catch (error) {
+    return `Error getting base64 for skill ${skillId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
-
-  if (container.type === 'image-url') {
-    try {
-      // Optimize and convert image to JPEG
-      const { mimeType, base64Data } = await optimizeImageForAI(container.content);
-
-      return JSON.stringify({
-        containerId: container.id,
-        type: 'image-url',
-        url: container.content,
-        mimeType: mimeType,
-        base64Data: base64Data,
-        altText: container.altText,
-        optimized: true,
-        format: 'JPEG (70% quality, max 800x800)',
-      }, null, 2);
-    } catch (error) {
-      return `Error optimizing image: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    }
-  }
-
-  return `Unsupported image type for container ${containerId}`;
 }
 
 // Set image display size
-export function setImageSize(containerId: string, sizePercentage: number): string {
-  const row = rows.find(r => r.container.id === containerId);
+export function setImageSize(skillId: string, sizePercentage: number): string {
+  const row = rows.find(r => r.skill.id === skillId);
 
   if (!row) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
-  const { container } = row;
+  const { skill } = row;
+  const handler = getSkillHandler(skill.type);
 
-  if (container.type !== 'image-url' && container.type !== 'image-base64') {
-    return `Container ${containerId} is not an image container (type: ${container.type})`;
+  if (!handler.canResize) {
+    return `Skill ${skillId} does not support resizing (type: ${skill.type})`;
   }
 
   // Validate size percentage (min 10%, max 500%)
@@ -451,23 +300,23 @@ export function setImageSize(containerId: string, sizePercentage: number): strin
     return `Invalid size percentage: ${sizePercentage}. Must be between 10 and 500.`;
   }
 
-  container.displaySize = sizePercentage;
+  skill.displaySize = sizePercentage;
   updateScratchpadUI();
   showToast(`Image size set to ${sizePercentage}%`);
 
-  return `Container ${containerId} display size set to ${sizePercentage}%`;
+  return `Skill ${skillId} display size set to ${sizePercentage}%`;
 }
 
 // Move a row up (swap with previous row)
-export function moveRowUp(containerId: string): string {
-  const index = rows.findIndex(r => r.container.id === containerId);
+export function moveRowUp(skillId: string): string {
+  const index = rows.findIndex(r => r.skill.id === skillId);
 
   if (index === -1) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
   if (index === 0) {
-    return `Container ${containerId} is already at the top`;
+    return `Skill ${skillId} is already at the top`;
   }
 
   // Swap with previous row
@@ -478,21 +327,21 @@ export function moveRowUp(containerId: string): string {
   rows[index].rowNumber = index + 1;
 
   updateScratchpadUI();
-  showToast(`Moved ${containerId} up`);
+  showToast(`Moved ${skillId} up`);
 
-  return `Container ${containerId} moved up`;
+  return `Skill ${skillId} moved up`;
 }
 
 // Move a row down (swap with next row)
-export function moveRowDown(containerId: string): string {
-  const index = rows.findIndex(r => r.container.id === containerId);
+export function moveRowDown(skillId: string): string {
+  const index = rows.findIndex(r => r.skill.id === skillId);
 
   if (index === -1) {
-    return `Container ${containerId} not found`;
+    return `Skill ${skillId} not found`;
   }
 
   if (index === rows.length - 1) {
-    return `Container ${containerId} is already at the bottom`;
+    return `Skill ${skillId} is already at the bottom`;
   }
 
   // Swap with next row
@@ -503,7 +352,37 @@ export function moveRowDown(containerId: string): string {
   rows[index + 1].rowNumber = index + 2;
 
   updateScratchpadUI();
-  showToast(`Moved ${containerId} down`);
+  showToast(`Moved ${skillId} down`);
 
-  return `Container ${containerId} moved down`;
+  return `Skill ${skillId} moved down`;
+}
+
+// Export tools and instructions for main.ts
+export function getScratchpadTools() {
+  // Create API for skills
+  const api = {
+    getSkillById: (skillId: string) => {
+      const row = rows.find(r => r.skill.id === skillId);
+      return row?.skill;
+    },
+    updateUI: () => updateScratchpadUI(),
+    showToast: (message: string) => showToast(message),
+  };
+
+  // Scratchpad functions for general tools
+  const scratchpadFunctions = {
+    createSkill,
+    readSkill,
+    readAllSkills,
+    updateSkill,
+    deleteSkill,
+    moveRowUp,
+    moveRowDown,
+    clearScratchpad,
+  };
+
+  const tools = getAllTools(api, scratchpadFunctions);
+  const instructions = getAllInstructions();
+
+  return { tools, instructions };
 }
