@@ -2,6 +2,7 @@ import { SkillHandler, SkillType, ScratchpadAPI, ToolDefinition } from './types'
 import { markdownSkill } from './markdown';
 import { mermaidSkill } from './mermaid';
 import { imageSkill } from './image';
+import { tableSkill } from './table';
 import { getGeneralTools, getGeneralInstructions } from './general-tools';
 
 export * from './types';
@@ -11,6 +12,7 @@ export const skillRegistry: Map<SkillType, SkillHandler> = new Map([
   ['markdown', markdownSkill],
   ['mermaid', mermaidSkill],
   ['image', imageSkill],
+  ['table', tableSkill],
 ]);
 
 // Get skill handler by type

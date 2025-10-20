@@ -1,4 +1,5 @@
 import mermaid from 'mermaid';
+import { Grid } from 'gridjs';
 import { Skill, SkillType, getSkillHandler, getAllTools, getAllInstructions } from './skills';
 
 // Initialize mermaid
@@ -91,11 +92,46 @@ export async function updateScratchpadUI(): Promise<void> {
 
     await Promise.all(imageLoadPromises);
 
+    // Initialize Grid.js tables
+    const tableWrappers = scratchpadDiv.querySelectorAll('.gridjs-wrapper');
+    const hasTable = tableWrappers.length > 0;
+
+    tableWrappers.forEach((wrapper) => {
+      const tableData = wrapper.getAttribute('data-table');
+      if (tableData) {
+        try {
+          const data = JSON.parse(tableData.replace(/&quot;/g, '"'));
+          new Grid({
+            columns: data.columns,
+            data: data.data,
+            search: true,
+            sort: true,
+            pagination: {
+              limit: 10,
+            },
+          }).render(wrapper as HTMLElement);
+        } catch (error) {
+          console.error('Failed to render Grid.js table:', error);
+        }
+      }
+    });
+
     // Add event listeners for row movement buttons
     attachRowControlListeners();
+
+    // If we have tables, wait for Grid.js to finish DOM manipulation
+    if (hasTable) {
+      // Grid.js needs time to render search, pagination, and all table elements
+      // Wait 1.5 seconds to ensure everything is fully rendered
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          resolve();
+        }, 1500);
+      });
+    }
   }
 
-  // Scroll to bottom after all content is fully rendered
+  // Scroll to bottom after all content is fully rendered (including Grid.js tables)
   const mainContainer = document.querySelector('.main-container') as HTMLElement;
   if (mainContainer) {
     mainContainer.scrollTop = mainContainer.scrollHeight;

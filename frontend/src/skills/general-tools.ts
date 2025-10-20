@@ -16,18 +16,18 @@ export function getGeneralTools(
   return [
     {
       name: 'create_skill',
-      description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image" for images from URL or base64 data URI.',
+      description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image" for images from URL or base64 data URI, "table" for interactive data tables.',
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
-            enum: ['markdown', 'mermaid', 'image'],
-            description: 'The type of skill: "markdown", "mermaid", or "image"',
+            enum: ['markdown', 'mermaid', 'image', 'table'],
+            description: 'The type of skill: "markdown", "mermaid", "image", or "table"',
           },
           content: {
             type: 'string',
-            description: 'For markdown/mermaid: the text content. For image: a URL or data URI (data:image/png;base64,...)',
+            description: 'For markdown/mermaid: the text content. For image: a URL or data URI. For table: JSON string from create_table tool',
           },
           alt_text: {
             type: 'string',
