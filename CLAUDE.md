@@ -1,0 +1,1 @@
+- The name of the project is AI Magicboard.

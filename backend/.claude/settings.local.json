@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Local/Repositories/oai-realtime-test/frontend/**)",
+      "Read(//c/Local/Repositories/oai-realtime-test/**)",
+      "WebFetch(domain:openai.github.io)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
