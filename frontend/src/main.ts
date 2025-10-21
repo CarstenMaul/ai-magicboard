@@ -16,10 +16,10 @@ interface TokenResponse {
 
 const API_URL = 'http://localhost:8000';
 
-// Configuration: Key to toggle mute/unmute
+// Configuration: Keys to toggle mute/unmute (supports multiple keys)
 // Common keys: 'AudioVolumeUp', 'AudioVolumeDown', 'Space', 'KeyM', etc.
 // See: https://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_code_values
-const MUTE_TOGGLE_KEY = '§';
+const MUTE_TOGGLE_KEYS = ["'", '<AudioVolumeUp>'];
 
 // Configuration: Background colors for mute state (for controls panel)
 const MUTED_BACKGROUND_COLOR = '#ff4444'; // Red when muted
@@ -291,6 +291,8 @@ async function connectAgent(): Promise<void> {
     agent = new RealtimeAgent({
       name: 'Assistant',
       instructions: `You are a helpful assistant. ONLY speak in german language. Never switch to any other language.
+
+IMPORTANT: After answering a question or replying to a request, do NOT ask if there is anything else i like to discuss, or similar statements.
 
 You have access to several powerful tools:
 
@@ -568,15 +570,15 @@ function handleKeyDown(event: KeyboardEvent): void {
   const debugInfo = document.getElementById('debugInfo');
   if (debugInfo) {
     // Check both code and key for matching (media keys use event.key, regular keys use event.code)
-    const matches = event.code === MUTE_TOGGLE_KEY || event.key === MUTE_TOGGLE_KEY;
+    const matches = MUTE_TOGGLE_KEYS.includes(event.code) || MUTE_TOGGLE_KEYS.includes(event.key);
     const sessionActive = session !== null;
     debugInfo.textContent = `Debug: code="${event.code}" key="${event.key}" | matches=${matches} sessionActive=${sessionActive}`;
   }
 
-  // Check if the pressed key matches the configured mute toggle key
+  // Check if the pressed key matches any of the configured mute toggle keys
   // For media keys (like AudioVolumeUp), event.code is empty, so check event.key instead
-  if (event.code === MUTE_TOGGLE_KEY || event.key === MUTE_TOGGLE_KEY) {
-    console.log(`Mute toggle key pressed! event.code="${event.code}" event.key="${event.key}" MUTE_TOGGLE_KEY="${MUTE_TOGGLE_KEY}"`);
+  if (MUTE_TOGGLE_KEYS.includes(event.code) || MUTE_TOGGLE_KEYS.includes(event.key)) {
+    console.log(`Mute toggle key pressed! event.code="${event.code}" event.key="${event.key}" MUTE_TOGGLE_KEYS=${JSON.stringify(MUTE_TOGGLE_KEYS)}`);
 
     // Prevent default behavior (e.g., system volume control)
     event.preventDefault();
@@ -617,18 +619,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add keyboard listener for mute toggle
   document.addEventListener('keydown', handleKeyDown);
 
-  // Display configured key info
+  // Display configured keys info
   const keyInfo = document.getElementById('keyInfo');
   if (keyInfo) {
-    // Convert key code to readable format
-    const readableKey = MUTE_TOGGLE_KEY.replace('Audio', '')
-      .replace('Key', '')
-      .replace(/([A-Z])/g, ' $1')
-      .trim();
-    keyInfo.textContent = `Press "${readableKey}" to mute/unmute`;
+    // Convert key codes to readable format
+    const readableKeys = MUTE_TOGGLE_KEYS.map(key =>
+      key.replace('Audio', '')
+         .replace('Key', '')
+         .replace(/([A-Z])/g, ' $1')
+         .trim()
+    );
+
+    if (readableKeys.length === 1) {
+      keyInfo.textContent = `Press "${readableKeys[0]}" to mute/unmute`;
+    } else if (readableKeys.length === 2) {
+      keyInfo.textContent = `Press "${readableKeys[0]}" or "${readableKeys[1]}" to mute/unmute`;
+    } else {
+      const lastKey = readableKeys.pop();
+      keyInfo.textContent = `Press "${readableKeys.join('", "')}", or "${lastKey}" to mute/unmute`;
+    }
   }
 
-  console.log(`Mute toggle key configured: ${MUTE_TOGGLE_KEY}`);
+  console.log(`Mute toggle keys configured: ${JSON.stringify(MUTE_TOGGLE_KEYS)}`);
 
   // Initialize draggable controls panel
   initializeDraggableControls();
