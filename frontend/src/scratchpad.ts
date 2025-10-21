@@ -177,6 +177,9 @@ export async function updateScratchpadUI(): Promise<void> {
     // Add event listeners for row movement buttons
     attachRowControlListeners();
 
+    // Add event listeners for outline toggles
+    attachOutlineToggleListeners();
+
     // If we have tables, wait for Grid.js to finish DOM manipulation
     if (hasTable) {
       // Grid.js needs time to render search, pagination, and all table elements
@@ -218,6 +221,33 @@ function attachRowControlListeners(): void {
       if (skillId) {
         moveRowDown(skillId);
       }
+    });
+  });
+}
+
+// Attach event listeners to outline toggle buttons
+function attachOutlineToggleListeners(): void {
+  const toggleButtons = document.querySelectorAll('.outline-toggle');
+
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const itemId = (button as HTMLElement).getAttribute('data-id');
+      if (!itemId) return;
+
+      // Find the outline item
+      const itemElement = document.querySelector(`.outline-item[data-id="${itemId}"]`);
+      if (!itemElement) return;
+
+      // Toggle children visibility
+      const childrenContainer = itemElement.querySelector('.outline-children');
+      if (!childrenContainer) return;
+
+      const isCurrentlyHidden = (childrenContainer as HTMLElement).style.display === 'none';
+      (childrenContainer as HTMLElement).style.display = isCurrentlyHidden ? 'block' : 'none';
+
+      // Toggle arrow icon
+      button.textContent = isCurrentlyHidden ? '▼' : '▶';
     });
   });
 }

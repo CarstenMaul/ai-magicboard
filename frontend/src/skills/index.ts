@@ -3,6 +3,7 @@ import { markdownSkill } from './markdown';
 import { mermaidSkill } from './mermaid';
 import { imageSkill } from './image';
 import { tableSkill } from './table';
+import { outlinerSkill } from './outliner';
 import { getGeneralTools, getGeneralInstructions } from './general-tools';
 
 export * from './types';
@@ -13,6 +14,7 @@ export const skillRegistry: Map<SkillType, SkillHandler> = new Map([
   ['mermaid', mermaidSkill],
   ['image', imageSkill],
   ['table', tableSkill],
+  ['outliner', outlinerSkill],
 ]);
 
 // Get skill handler by type
