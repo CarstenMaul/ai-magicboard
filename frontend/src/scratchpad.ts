@@ -113,11 +113,20 @@ export async function updateScratchpadUI(): Promise<void> {
     // Render mermaid diagrams
     const mermaidElements = scratchpadDiv.querySelectorAll('.mermaid');
     if (mermaidElements.length > 0) {
+      console.log(`Found ${mermaidElements.length} mermaid diagram(s) to render`);
+
+      // Log each mermaid element's content before rendering
+      mermaidElements.forEach((element, index) => {
+        console.log(`Mermaid diagram ${index + 1} content:`, element.textContent);
+      });
+
       try {
+        console.log('Calling mermaid.run()...');
         await mermaid.run({
           nodes: Array.from(mermaidElements) as HTMLElement[],
           suppressErrors: true,
         });
+        console.log('Mermaid rendering completed successfully');
       } catch (error) {
         console.error('Failed to render mermaid diagrams:', error);
         if (error instanceof Error) {

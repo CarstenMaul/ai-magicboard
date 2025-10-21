@@ -86,16 +86,20 @@ export const imageSkill: SkillHandler = {
   render: async (skill: Skill): Promise<string> => {
     // Check if this is a gallery or single image
     if (skill.gallery && skill.gallery.length > 0) {
-      // Render as gallery
+      // Render as gallery with per-image annotations
       const imagesHtml = skill.gallery.map(img => {
         const alt = img.altText || `Image ${img.index}`;
         const sizeStyle = getImageStyle(img);
+        const annotationHtml = img.annotation
+          ? `<div class="image-annotation">${img.annotation}</div>`
+          : '';
         return `
           <div class="gallery-item">
             <div class="gallery-image-wrapper">
               <img src="${img.content}" alt="${alt}" ${sizeStyle} />
               <div class="image-index">${img.index}</div>
             </div>
+            ${annotationHtml}
           </div>
         `;
       }).join('');
@@ -111,36 +115,66 @@ export const imageSkill: SkillHandler = {
       // Render single image (backward compatible)
       const alt = skill.altText || 'Image';
       const sizeStyle = getImageStyle(skill);
+      const annotationHtml = skill.annotation
+        ? `<div class="image-annotation">${skill.annotation}</div>`
+        : '';
+
       return `
         <div class="skill-content image-skill">
           <img src="${skill.content}" alt="${alt}" ${sizeStyle} />
+          ${annotationHtml}
         </div>
       `;
     }
   },
 
   generateDescription: (skill: Skill): string => {
+    let desc = '';
     if (skill.gallery && skill.gallery.length > 0) {
-      return `Gallery with ${skill.gallery.length} image${skill.gallery.length > 1 ? 's' : ''}`;
+      desc = `Gallery with ${skill.gallery.length} image${skill.gallery.length > 1 ? 's' : ''}`;
+      // Count how many images in gallery have annotations
+      const annotatedCount = skill.gallery.filter(img => img.annotation).length;
+      if (annotatedCount > 0) {
+        desc += ` (${annotatedCount} annotated)`;
+      }
+    } else {
+      const isBase64 = isDataURI(skill.content);
+      if (isBase64) {
+        desc = skill.altText || 'Base64 Image';
+      } else {
+        desc = skill.altText || skill.content.substring(0, 40) + (skill.content.length > 40 ? '...' : '');
+      }
+      // Add annotation indicator if present (for single images)
+      if (skill.annotation) {
+        desc += ' (annotated)';
+      }
     }
-    const isBase64 = isDataURI(skill.content);
-    if (isBase64) {
-      return skill.altText || 'Base64 Image';
-    }
-    return skill.altText || skill.content.substring(0, 40) + (skill.content.length > 40 ? '...' : '');
+    return desc;
   },
 
   getContentAsMarkdown: (skill: Skill): string => {
     if (skill.gallery && skill.gallery.length > 0) {
-      // Return gallery as multiple markdown images
+      // Return gallery as multiple markdown images with per-image annotations
       return skill.gallery.map(img => {
         const alt = img.altText || `Image ${img.index}`;
-        return `![${alt}](${img.content})`;
+        let imgMarkdown = `![${alt}](${img.content})`;
+        // Add per-image annotation if present
+        if (img.annotation) {
+          imgMarkdown += `\n\n*${img.annotation}*`;
+        }
+        return imgMarkdown;
       }).join('\n\n');
     } else {
       // Return single image as markdown
       const alt = skill.altText || 'Image';
-      return `![${alt}](${skill.content})`;
+      let markdown = `![${alt}](${skill.content})`;
+
+      // Add annotation if present (for single images)
+      if (skill.annotation) {
+        markdown += `\n\n*${skill.annotation}*`;
+      }
+
+      return markdown;
     }
   },
 
@@ -369,7 +403,7 @@ export const imageSkill: SkillHandler = {
       },
       {
         name: 'add_image_to_gallery',
-        description: 'Adds an image to an image skill\'s gallery. If the skill doesn\'t have a gallery yet, initializes one. Accepts both URLs and base64 data URIs.',
+        description: 'Adds an image to an image skill\'s gallery. If the skill doesn\'t have a gallery yet, initializes one. Accepts both URLs and base64 data URIs. Optionally add an annotation.',
         parameters: {
           type: 'object',
           properties: {
@@ -384,6 +418,10 @@ export const imageSkill: SkillHandler = {
             alt_text: {
               type: 'string',
               description: 'Optional alt text for the image',
+            },
+            annotation: {
+              type: 'string',
+              description: 'Optional annotation text to display below the image',
             },
           },
           required: ['skill_id', 'content'],
@@ -408,6 +446,7 @@ export const imageSkill: SkillHandler = {
                 content: skill.content,
                 altText: skill.altText,
                 displaySize: skill.displaySize,
+                annotation: skill.annotation,
               });
             }
           }
@@ -422,6 +461,7 @@ export const imageSkill: SkillHandler = {
             index: nextIndex,
             content: input.content,
             altText: input.alt_text,
+            annotation: input.annotation,
           });
 
           api.updateUI();
@@ -521,7 +561,7 @@ export const imageSkill: SkillHandler = {
       },
       {
         name: 'read_gallery_images',
-        description: 'Lists all images in an image skill\'s gallery with their indices and metadata.',
+        description: 'Lists all images in an image skill\'s gallery with their indices, metadata, and annotations.',
         parameters: {
           type: 'object',
           properties: {
@@ -548,6 +588,7 @@ export const imageSkill: SkillHandler = {
           const images = skill.gallery.map(img => ({
             index: img.index,
             altText: img.altText,
+            annotation: img.annotation || null,
             displaySize: img.displaySize || 100,
             contentPreview: img.content.substring(0, 50) + '...',
           }));
@@ -631,6 +672,81 @@ export const imageSkill: SkillHandler = {
           }
         },
       },
+      {
+        name: 'set_image_annotation',
+        description: 'Adds or updates an annotation text that appears directly below an image. For single images, annotates the image. For galleries, requires image_index to annotate a specific image in the gallery.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+            annotation: {
+              type: 'string',
+              description: 'The annotation text to display below the image. Can be empty to remove the annotation.',
+            },
+            image_index: {
+              type: 'number',
+              description: 'For gallery images only: the index of the specific image to annotate (e.g., 1, 2, 3). Omit for single images.',
+            },
+          },
+          required: ['skill_id', 'annotation'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'image') {
+            return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
+          }
+
+          // Handle gallery images
+          if (skill.gallery && skill.gallery.length > 0) {
+            if (input.image_index === undefined || input.image_index === null) {
+              return `This is a gallery with ${skill.gallery.length} images. Please specify image_index parameter (e.g., 1, 2, 3) to annotate a specific image.`;
+            }
+
+            const image = skill.gallery.find(img => img.index === input.image_index);
+            if (!image) {
+              return `Image with index ${input.image_index} not found in gallery. Available indices: ${skill.gallery.map(img => img.index).join(', ')}`;
+            }
+
+            // Set or clear annotation for this specific gallery image
+            if (input.annotation && input.annotation.trim().length > 0) {
+              image.annotation = input.annotation;
+              api.updateUI();
+              api.showToast(`Annotation added to image ${input.image_index}`);
+              return `Annotation added to image ${input.image_index} in ${input.skill_id}: "${input.annotation}"`;
+            } else {
+              image.annotation = undefined;
+              api.updateUI();
+              api.showToast(`Annotation removed from image ${input.image_index}`);
+              return `Annotation removed from image ${input.image_index} in ${input.skill_id}`;
+            }
+          } else {
+            // Handle single images
+            if (input.image_index !== undefined && input.image_index !== null) {
+              return `Skill ${input.skill_id} is a single image, not a gallery. Do not specify image_index parameter.`;
+            }
+
+            // Set or clear annotation for single image
+            if (input.annotation && input.annotation.trim().length > 0) {
+              skill.annotation = input.annotation;
+              api.updateUI();
+              api.showToast(`Annotation added to ${input.skill_id}`);
+              return `Annotation added to skill ${input.skill_id}: "${input.annotation}"`;
+            } else {
+              skill.annotation = undefined;
+              api.updateUI();
+              api.showToast(`Annotation removed from ${input.skill_id}`);
+              return `Annotation removed from skill ${input.skill_id}`;
+            }
+          }
+        },
+      },
     ];
   },
 
@@ -640,6 +756,15 @@ export const imageSkill: SkillHandler = {
   * For galleries: Use add_image_to_gallery to add multiple images to one skill
   * URL images are optimized to JPEG (70% quality, max 800x800px) when viewed by AI
   * Gallery images are indexed and displayed in a grid with index numbers in corners
+
+  Image Annotations (per individual image):
+  * set_image_annotation: Add descriptive text that appears directly below a specific image
+  * For single images: set_image_annotation(skill_id, annotation)
+  * For gallery images: set_image_annotation(skill_id, annotation, image_index)
+  * Example: "Annotate image 1 with the text 'This shows the login flow'" becomes set_image_annotation("skill-1", "This shows the login flow", 1)
+  * Each image in a gallery can have its own annotation shown directly below it
+  * Use annotations to explain, label, or provide context for individual images
+  * Pass empty string to remove an annotation
 
   Image Resizing (applies to single images or ALL images in a gallery):
   * set_image_size: Resize by percentage (50 = half, 100 = original, 200 = double)

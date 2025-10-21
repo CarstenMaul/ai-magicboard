@@ -9,6 +9,7 @@ export interface GalleryImage {
   displaySize?: number; // Percentage (100 = original size)
   displayWidth?: number; // Width in pixels (keeps aspect ratio)
   displayHeight?: number; // Height in pixels (keeps aspect ratio)
+  annotation?: string; // Optional annotation text shown below this specific image
 }
 
 // Skill interface
@@ -21,6 +22,7 @@ export interface Skill {
   displayWidth?: number; // Width in pixels (keeps aspect ratio)
   displayHeight?: number; // Height in pixels (keeps aspect ratio)
   gallery?: GalleryImage[]; // Optional gallery mode for image skills
+  annotation?: string; // Optional annotation text shown below the skill (for images, diagrams, etc.)
 }
 
 // Tool definition interface

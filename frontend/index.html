@@ -252,10 +252,28 @@
         .mermaid-skill {
             border-left-color: #48bb78;
             background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mermaid-skill .mermaid {
+            flex: 1;
         }
 
         .image-skill {
             border-left-color: #ed8936;
+        }
+
+        /* Image annotation styles */
+        .image-annotation {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background: #f8f9fa;
+            border-left: 3px solid #ed8936;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #333;
+            font-style: italic;
         }
 
         .table-skill {
@@ -267,7 +285,7 @@
         .image-gallery {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
+            gap: 1.5rem;
             padding: 0.5rem;
         }
 
@@ -275,6 +293,7 @@
             position: relative;
             display: flex;
             flex-direction: column;
+            gap: 0.5rem;
         }
 
         .gallery-image-wrapper {
@@ -310,6 +329,14 @@
             backdrop-filter: blur(4px);
         }
 
+        /* Gallery image annotations */
+        .gallery-item .image-annotation {
+            margin-top: 0;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            border-radius: 0.3rem;
+        }
+
         /* Markdown styles */
         .scratchpad-content h1 { font-size: 2rem; margin-top: 1.5rem; margin-bottom: 1rem; }
         .scratchpad-content h2 { font-size: 1.5rem; margin-top: 1.3rem; margin-bottom: 0.8rem; }
@@ -342,10 +369,14 @@
             border: 1px solid #e0e0e0;
             display: flex;
             justify-content: center;
-            overflow-x: auto;
+            align-items: center;
+            overflow: auto;
+            width: 100%;
+            min-height: 400px;
         }
         .scratchpad-content .mermaid svg {
             max-width: 100%;
+            width: 100%;
             height: auto;
         }
 
@@ -480,15 +511,27 @@
 
         /* Adjust mermaid diagrams in fullscreen */
         .fullscreen-content .mermaid-skill {
-            min-height: 70vh;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .fullscreen-content .mermaid-skill .mermaid {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 100%;
+            min-height: 0;
+            overflow: auto;
         }
 
         .fullscreen-content .mermaid svg {
             max-width: 100%;
-            max-height: 80vh;
+            max-height: 100%;
+            width: 100%;
+            height: auto;
         }
 
         /* Adjust images in fullscreen */

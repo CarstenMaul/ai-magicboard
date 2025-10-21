@@ -4,6 +4,13 @@ export const mermaidSkill: SkillHandler = {
   type: 'mermaid',
 
   render: async (skill: Skill): Promise<string> => {
+    // Log mermaid markup to console for debugging
+    console.log('=== MERMAID DIAGRAM ===');
+    console.log(`Skill ID: ${skill.id}`);
+    console.log('Markup:');
+    console.log(skill.content);
+    console.log('======================');
+
     return `
       <div class="skill-content mermaid-skill">
         <pre class="mermaid">${skill.content}</pre>
