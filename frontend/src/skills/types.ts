@@ -49,7 +49,7 @@ export interface SkillHandler {
   generateDescription: (skill: Skill) => string;
   getContentAsMarkdown: (skill: Skill) => string;
   canResize?: boolean;
-  getImage?: (skill: Skill, imageIndex: number) => Promise<{ type: string; data: string; mediaType: string }>;
+  getImage: (skill: Skill, imageIndex?: number) => Promise<{ type: string; data: string; mediaType: string } | string>;
   getTools?: (api: ScratchpadAPI) => ToolDefinition[];
   getInstructions?: () => string;
 }

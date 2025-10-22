@@ -183,7 +183,7 @@ export const imageSkill: SkillHandler = {
     }
   },
 
-  getImage: async (skill: Skill, imageIndex: number) => {
+  getImage: async (skill: Skill, imageIndex: number = 1) => {
     let targetImage: { content: string; altText?: string } | undefined;
 
     // For single images, treat as index 1

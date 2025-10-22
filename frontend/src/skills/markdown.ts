@@ -32,6 +32,10 @@ export const markdownSkill: SkillHandler = {
     return skill.content;
   },
 
+  getImage: async (skill: Skill, imageIndex: number = 1): Promise<string> => {
+    return `Markdown skills do not provide images for visual analysis. This is a text-based skill containing markdown content. Use read_skill to read the text content instead.`;
+  },
+
   getInstructions: (): string => {
     return `- 'markdown': Text/markdown content`;
   },

@@ -374,6 +374,17 @@ export const outlinerSkill: SkillHandler = {
     ];
   },
 
+  getImage: async (skill: Skill, imageIndex: number = 1): Promise<string> => {
+    const items = parseOutline(skill.content);
+    const countItems = (items: OutlineItem[]): number => {
+      return items.reduce((count, item) => {
+        return count + 1 + (item.children ? countItems(item.children) : 0);
+      }, 0);
+    };
+    const total = countItems(items);
+    return `Outliner skills do not provide images for visual analysis. This is a hierarchical outline structure with ${total} item${total !== 1 ? 's' : ''}. Use read_outline to read the outline content instead.`;
+  },
+
   getInstructions: (): string => {
     return `- 'outliner': Hierarchical, collapsible outlines for organizing information
   * Create with create_skill(type='outliner', content='[]')

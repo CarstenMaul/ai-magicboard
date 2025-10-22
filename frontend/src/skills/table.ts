@@ -386,6 +386,11 @@ export const tableSkill: SkillHandler = {
     ];
   },
 
+  getImage: async (skill: Skill, imageIndex: number = 1): Promise<string> => {
+    const tableData = parseTableContent(skill.content);
+    return `Table skills do not provide images for visual analysis. This is a data table skill with ${tableData.columns.length} column${tableData.columns.length !== 1 ? 's' : ''} and ${tableData.data.length} row${tableData.data.length !== 1 ? 's' : ''}. Use read_table_data to read the table content instead.`;
+  },
+
   getInstructions: (): string => {
     return `- 'table': Interactive data tables powered by Grid.js
   * Create tables with columns and data

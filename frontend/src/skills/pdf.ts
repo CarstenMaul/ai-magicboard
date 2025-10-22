@@ -182,6 +182,58 @@ export function attachPDFNavigationListeners(
 export const pdfSkill: SkillHandler = {
   type: 'pdf',
 
+  async getImage(skill: Skill, imageIndex: number = 1): Promise<{ type: string; data: string; mediaType: string } | string> {
+    const data = parsePDFContent(skill.content);
+    const pageNum = imageIndex; // For PDF, index represents page number
+
+    try {
+      // Determine the PDF source URL
+      let pdfSource = data.source;
+      if (data.sourceType === 'file') {
+        pdfSource = `http://localhost:8000/api/local-file?path=${encodeURIComponent(data.source)}`;
+      }
+
+      // Load the PDF
+      const pdf = await pdfjsLib.getDocument(pdfSource).promise;
+      const totalPages = pdf.numPages;
+
+      // Validate page number
+      if (pageNum < 1 || pageNum > totalPages) {
+        return `Invalid page number ${pageNum}. PDF has ${totalPages} pages (1-${totalPages})`;
+      }
+
+      // Render page to canvas
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.5 });
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) {
+        return 'Failed to create canvas context';
+      }
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+      }).promise;
+
+      // Convert to JPEG with 25% quality
+      const base64WithPrefix = canvas.toDataURL('image/jpeg', 0.25);
+      const base64Data = base64WithPrefix.split(',')[1];
+
+      return {
+        type: 'image',
+        data: base64Data,
+        mediaType: 'image/jpeg',
+      };
+    } catch (error) {
+      return `Failed to render PDF page ${pageNum}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  },
+
   async render(skill: Skill): Promise<string> {
     const data = parsePDFContent(skill.content);
     const pageInfo = data.totalPages
