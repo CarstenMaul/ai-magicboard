@@ -349,33 +349,6 @@ export function getAllSkills(): Skill[] {
   return rows.map(r => r.skill);
 }
 
-// Set image display size
-export function setImageSize(skillId: string, sizePercentage: number): string {
-  const row = rows.find(r => r.skill.id === skillId);
-
-  if (!row) {
-    return `Skill ${skillId} not found`;
-  }
-
-  const { skill } = row;
-  const handler = getSkillHandler(skill.type);
-
-  if (!handler.canResize) {
-    return `Skill ${skillId} does not support resizing (type: ${skill.type})`;
-  }
-
-  // Validate size percentage (min 10%, max 500%)
-  if (sizePercentage < 10 || sizePercentage > 500) {
-    return `Invalid size percentage: ${sizePercentage}. Must be between 10 and 500.`;
-  }
-
-  skill.displaySize = sizePercentage;
-  updateScratchpadUI();
-  showToast(`Image size set to ${sizePercentage}%`);
-
-  return `Skill ${skillId} display size set to ${sizePercentage}%`;
-}
-
 // Move a row up (swap with previous row)
 export function moveRowUp(skillId: string): string {
   const index = rows.findIndex(r => r.skill.id === skillId);
