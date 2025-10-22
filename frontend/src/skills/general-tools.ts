@@ -1,4 +1,4 @@
-import { ToolDefinition } from './types';
+import { ToolDefinition, ScratchpadAPI } from './types';
 
 // General scratchpad tools that aren't skill-specific
 export function getGeneralTools(
@@ -14,7 +14,8 @@ export function getGeneralTools(
     scrollToSkill: (skillId: string) => string;
     enterFullscreenSkill: (identifier: string | number) => string;
     exitFullscreenSkill: () => string;
-  }
+  },
+  api?: ScratchpadAPI
 ): ToolDefinition[] {
   return [
     {
@@ -221,6 +222,64 @@ export function getGeneralTools(
       },
     },
   ];
+
+  // Add data object tools if API is available
+  if (api) {
+    const dataObjectTools: ToolDefinition[] = [
+      {
+        name: 'list_data_objects',
+        description: 'Lists all registered data objects in the global registry. Shows the names of all data objects that skills can subscribe to.',
+        parameters: {
+          type: 'object',
+          properties: {},
+          required: [],
+          additionalProperties: true,
+        },
+        execute: async () => {
+          const names = api.getAllDataObjectNames();
+          if (names.length === 0) {
+            return 'No data objects registered.';
+          }
+          return `Registered data objects (${names.length}):\n${names.map(name => `- ${name}`).join('\n')}`;
+        },
+      },
+      {
+        name: 'inspect_data_object',
+        description: 'Inspects a specific data object to see its details including type, data content, and list of subscribed skill IDs.',
+        parameters: {
+          type: 'object',
+          properties: {
+            data_object_name: {
+              type: 'string',
+              description: 'Name of the data object to inspect',
+            },
+          },
+          required: ['data_object_name'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const info = api.getDataObjectInfo(input.data_object_name);
+          if (!info) {
+            return `Data object "${input.data_object_name}" not found.`;
+          }
+
+          const result = {
+            name: info.name,
+            type: info.type,
+            subscribers: info.subscribers,
+            subscriberCount: info.subscribers.length,
+            data: info.data,
+          };
+
+          return JSON.stringify(result, null, 2);
+        },
+      },
+    ];
+
+    return [...tools, ...dataObjectTools];
+  }
+
+  return tools;
 }
 
 export function getGeneralInstructions(): string {
@@ -238,6 +297,10 @@ The scratchpad uses a row-based layout where each skill is displayed in its own 
 - show_fullscreen: Displays a skill in fullscreen mode using either skill ID or row number (great for presentations or focusing)
 - exit_fullscreen: Exits fullscreen mode and returns to normal view
 - clear_scratchpad: Clears all skills from the scratchpad
+
+**Data Object Registry Tools:**
+- list_data_objects: Lists all registered data objects in the global registry
+- inspect_data_object: Inspects a specific data object to see its type, data, and subscribers
 
 **Note:** For show_fullscreen, you can use either:
   - Skill ID: show_fullscreen(identifier="skill-1")

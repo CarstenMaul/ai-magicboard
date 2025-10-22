@@ -72,14 +72,14 @@ export const tableSkill: SkillHandler = {
     return [
       {
         name: 'create_table',
-        description: 'Creates a new table with specified columns and optional initial data.',
+        description: 'Creates a new table with specified columns and optional initial data. Can optionally create or reference a data object for shared data between skills. Returns JSON content and creates/subscribes to data object if specified.',
         parameters: {
           type: 'object',
           properties: {
             columns: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Array of column names, e.g., ["Name", "Email", "Phone"]',
+              description: 'Array of column names, e.g., ["Name", "Email", "Phone"]. Optional if data_object_name references existing data object.',
             },
             data: {
               type: 'array',
@@ -89,12 +89,41 @@ export const tableSkill: SkillHandler = {
               },
               description: 'Optional array of rows, where each row is an array of values matching columns',
             },
+            data_object_name: {
+              type: 'string',
+              description: 'Optional: Name for a data object. If it exists, use its data. If not, create it with this table\'s data. This enables data sharing between multiple skills.',
+            },
+            skill_id: {
+              type: 'string',
+              description: 'Optional: Skill ID if creating content for an existing table skill (for data object subscription)',
+            },
           },
-          required: ['columns'],
+          required: [],
           additionalProperties: true,
         },
         execute: async (input: any) => {
-          const tableData: TableData = {
+          let tableData: TableData;
+
+          // Case 1: data_object_name provided and exists - use data from data object
+          if (input.data_object_name && api.hasDataObject(input.data_object_name)) {
+            const existingData = api.getDataObject(input.data_object_name);
+            tableData = existingData;
+
+            // If skill_id provided, subscribe it to the data object
+            if (input.skill_id) {
+              api.subscribeToDataObject(input.data_object_name, input.skill_id);
+              return JSON.stringify(tableData) + `\n\n[Subscribed ${input.skill_id} to data object "${input.data_object_name}"]`;
+            }
+
+            return JSON.stringify(tableData) + `\n\n[Using data from existing data object "${input.data_object_name}". Use skill_id parameter to subscribe a skill to it.]`;
+          }
+
+          // Case 2 & 3: Create table data from provided columns/data
+          if (!input.columns) {
+            return 'Error: columns parameter is required when creating new table data';
+          }
+
+          tableData = {
             columns: input.columns || [],
             data: input.data || [],
           };
@@ -108,7 +137,13 @@ export const tableSkill: SkillHandler = {
             }
           }
 
-          // This will be called via create_skill with type='table'
+          // Case 2: data_object_name provided but doesn't exist - register it
+          if (input.data_object_name) {
+            api.registerDataObject(input.data_object_name, 'tabledata', tableData);
+            return JSON.stringify(tableData) + `\n\n[Registered as data object "${input.data_object_name}". You can now create a table skill with this content and subscribe it using subscribe_table_to_data_object, or other skills can subscribe to this data.]`;
+          }
+
+          // Case 3: No data_object_name - just return table content
           return JSON.stringify(tableData);
         },
       },
@@ -582,6 +617,10 @@ export const tableSkill: SkillHandler = {
 
   Table Management Tools:
   * create_table: Define columns and optional initial data
+    - NEW: Supports data_object_name parameter for automatic data object creation/reference
+    - If data_object_name exists: uses data from that data object
+    - If data_object_name doesn't exist: creates new data object with table data
+    - Simplifies workflow for data sharing between tables
   * add_table_row: Append new rows to the table
   * add_table_column: Add new columns (fills existing rows with default value)
   * update_table_cell: Update specific cell values by row/column index
@@ -602,13 +641,22 @@ export const tableSkill: SkillHandler = {
   * Programmatic sorting: sort_table_by_column(skill_id, column_index, order="asc"/"desc")
   * Smart sorting: Automatically detects numbers vs text for proper sorting
 
-  Example workflow:
+  Basic workflow:
   1. tableContent = create_table(columns=["Name", "Age"], data=[["Alice", "25"], ["Bob", "30"]])
   2. create_skill(type='table', content=tableContent)
   3. add_table_row(skill_id="skill-1", row=["Charlie", "20"])
   4. sort_table_by_column(skill_id="skill-1", column_index=1, order="asc")  # Sort by Age ascending
 
-  Data sharing example:
+  Simplified data sharing workflow (RECOMMENDED):
+  1. content = create_table(columns=["Name", "Age"], data=[["Alice", "25"]], data_object_name="users")
+     # This creates the table data AND registers it as a data object in one step!
+  2. create_skill(type='table', content=content, altText="Table 1")  # skill-1
+  3. subscribe_table_to_data_object(skill_id="skill-1", data_object_name="users")
+  4. content2 = create_table(data_object_name="users", skill_id="skill-2")  # Reuse existing data
+  5. create_skill(type='table', content=content2, altText="Table 2")  # skill-2
+  6. Now both tables share the same data! Update via update_table_data_object to sync both.
+
+  Advanced data sharing example (manual approach):
   1. create_skill(type='table', content=tableContent, altText="Master Table")  # skill-1
   2. register_table_data_object(skill_id="skill-1", data_object_name="shared-data")
   3. create_skill(type='table', content='{"columns":[],"data":[]}', altText="Mirror Table")  # skill-2

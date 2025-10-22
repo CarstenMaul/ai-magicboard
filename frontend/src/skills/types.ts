@@ -49,6 +49,8 @@ export interface ScratchpadAPI {
   updateDataObject: (dataObjectName: string, newData: any, updaterSkillId?: string) => void;
   getDataObject: (dataObjectName: string) => any;
   hasDataObject: (dataObjectName: string) => boolean;
+  getAllDataObjectNames: () => string[];
+  getDataObjectInfo: (dataObjectName: string) => any;
 }
 
 // Base skill handler interface

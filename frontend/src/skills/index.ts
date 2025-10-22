@@ -32,8 +32,8 @@ export function getSkillHandler(type: SkillType): SkillHandler {
 export function getAllTools(api: ScratchpadAPI, scratchpadFunctions: any): ToolDefinition[] {
   const tools: ToolDefinition[] = [];
 
-  // Add general scratchpad tools
-  tools.push(...getGeneralTools(scratchpadFunctions));
+  // Add general scratchpad tools (pass api for data object tools)
+  tools.push(...getGeneralTools(scratchpadFunctions, api));
 
   // Collect tools from each skill
   for (const [_, handler] of skillRegistry) {

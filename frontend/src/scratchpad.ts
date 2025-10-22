@@ -619,6 +619,12 @@ export function getScratchpadTools() {
     hasDataObject: (dataObjectName: string) => {
       return dataRegistry.hasDataObject(dataObjectName);
     },
+    getAllDataObjectNames: () => {
+      return dataRegistry.getAllDataObjectNames();
+    },
+    getDataObjectInfo: (dataObjectName: string) => {
+      return dataRegistry.getDataObjectInfo(dataObjectName);
+    },
   };
 
   // Scratchpad functions for general tools
