@@ -4,6 +4,7 @@ import { Skill, SkillHandler, ScratchpadAPI, ToolDefinition } from './types';
 interface TableData {
   columns: string[];
   data: any[][];
+  _data_object_name?: string; // Optional: metadata for auto-subscription
 }
 
 // Parse table content
@@ -107,7 +108,10 @@ export const tableSkill: SkillHandler = {
           // Case 1: data_object_name provided and exists - use data from data object
           if (input.data_object_name && api.hasDataObject(input.data_object_name)) {
             const existingData = api.getDataObject(input.data_object_name);
-            tableData = existingData;
+            tableData = {
+              ...existingData,
+              _data_object_name: input.data_object_name // Store for auto-subscription
+            };
 
             // If skill_id provided, subscribe it to the data object
             if (input.skill_id) {
@@ -115,7 +119,7 @@ export const tableSkill: SkillHandler = {
               return JSON.stringify(tableData) + `\n\n[Subscribed ${input.skill_id} to data object "${input.data_object_name}"]`;
             }
 
-            return JSON.stringify(tableData) + `\n\n[Using data from existing data object "${input.data_object_name}". Use skill_id parameter to subscribe a skill to it.]`;
+            return JSON.stringify(tableData) + `\n\n[Using data from existing data object "${input.data_object_name}". Table will auto-subscribe when created.]`;
           }
 
           // Case 2 & 3: Create table data from provided columns/data
@@ -139,8 +143,19 @@ export const tableSkill: SkillHandler = {
 
           // Case 2: data_object_name provided but doesn't exist - register it
           if (input.data_object_name) {
-            api.registerDataObject(input.data_object_name, 'tabledata', tableData);
-            return JSON.stringify(tableData) + `\n\n[Registered as data object "${input.data_object_name}". You can now create a table skill with this content and subscribe it using subscribe_table_to_data_object, or other skills can subscribe to this data.]`;
+            // Register the data object (without _data_object_name metadata)
+            const dataToRegister = {
+              columns: tableData.columns,
+              data: tableData.data
+            };
+            api.registerDataObject(input.data_object_name, 'tabledata', dataToRegister);
+
+            // Return table content with metadata for auto-subscription
+            const tableDataWithMeta = {
+              ...tableData,
+              _data_object_name: input.data_object_name
+            };
+            return JSON.stringify(tableDataWithMeta) + `\n\n[Registered as data object "${input.data_object_name}". Table will auto-subscribe when created.]`;
           }
 
           // Case 3: No data_object_name - just return table content
@@ -650,11 +665,12 @@ export const tableSkill: SkillHandler = {
   Simplified data sharing workflow (RECOMMENDED):
   1. content = create_table(columns=["Name", "Age"], data=[["Alice", "25"]], data_object_name="users")
      # This creates the table data AND registers it as a data object in one step!
-  2. create_skill(type='table', content=content, altText="Table 1")  # skill-1
-  3. subscribe_table_to_data_object(skill_id="skill-1", data_object_name="users")
-  4. content2 = create_table(data_object_name="users", skill_id="skill-2")  # Reuse existing data
-  5. create_skill(type='table', content=content2, altText="Table 2")  # skill-2
-  6. Now both tables share the same data! Update via update_table_data_object to sync both.
+  2. create_skill(type='table', content=content, altText="Table 1")  # skill-1 (auto-subscribes!)
+  3. content2 = create_table(data_object_name="users")  # Reuse existing data object
+  4. create_skill(type='table', content=content2, altText="Table 2")  # skill-2 (auto-subscribes!)
+  5. Now both tables share the same data! Update via update_table_data_object to sync both.
+
+  Note: Tables automatically subscribe to their data objects when created - no manual subscription needed!
 
   Advanced data sharing example (manual approach):
   1. create_skill(type='table', content=tableContent, altText="Master Table")  # skill-1

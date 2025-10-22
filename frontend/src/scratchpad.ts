@@ -247,6 +247,42 @@ export function createSkill(type: SkillType, content: string, altText?: string):
 
   rows.push(row);
   lastModifiedSkillId = skill.id; // Set for auto-scroll to new skill
+
+  // Auto-subscribe table skills to data objects if _data_object_name is present
+  if (type === 'table') {
+    try {
+      const tableData = JSON.parse(content);
+      if (tableData._data_object_name && dataRegistry.hasDataObject(tableData._data_object_name)) {
+        const dataObjectName = tableData._data_object_name;
+
+        // Set up the callback for data updates
+        const handler = getSkillHandler(type);
+        const onUpdate = (name: string, data: any) => {
+          if (handler.onDataObjectUpdated) {
+            handler.onDataObjectUpdated(skill, name, data);
+            updateScratchpadUI(); // Re-render after data update
+          }
+        };
+
+        // Subscribe to the data object
+        dataRegistry.subscribe(dataObjectName, skill.id, onUpdate);
+
+        // Track subscription on skill
+        if (!skill.dataObjectSubscriptions) {
+          skill.dataObjectSubscriptions = [];
+        }
+        skill.dataObjectSubscriptions.push(dataObjectName);
+
+        console.log(`[Auto-subscribe] Table ${skill.id} subscribed to data object "${dataObjectName}"`);
+        showToast(`${type} skill created and subscribed to ${dataObjectName}`);
+        updateScratchpadUI();
+        return `Skill created: ${skill.id} in row ${row.rowNumber} (auto-subscribed to "${dataObjectName}")`;
+      }
+    } catch (e) {
+      // If parsing fails or no data object, just continue normally
+    }
+  }
+
   updateScratchpadUI(); // Will auto-scroll to the new skill
   showToast(`${type} skill created`);
 
