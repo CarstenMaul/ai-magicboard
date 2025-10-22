@@ -17,18 +17,66 @@ function parseTableContent(content: string): TableData {
   }
 }
 
+// Helper: Update table data (either via data object or directly)
+// If the skill is subscribed to a data object, update the data object (propagates to all subscribers)
+// Otherwise, update the skill content directly
+function updateTableData(skill: Skill, newTableData: TableData, api: ScratchpadAPI, skillId: string): void {
+  // Check if this table is subscribed to a data object
+  // Try subscription array first, then check metadata in content as fallback
+  let dataObjectName = skill.dataObjectSubscriptions?.[0];
+
+  // Fallback: check the metadata in the content
+  if (!dataObjectName && newTableData._data_object_name) {
+    dataObjectName = newTableData._data_object_name;
+  }
+
+  if (dataObjectName && api.hasDataObject(dataObjectName)) {
+    // Update this skill's content first (since we'll be skipped in the notification)
+    const contentWithMeta = {
+      ...newTableData,
+      _data_object_name: dataObjectName
+    };
+    skill.content = JSON.stringify(contentWithMeta);
+
+    // Update the data object (this will notify all OTHER subscribed skills)
+    const cleanData = {
+      columns: newTableData.columns,
+      data: newTableData.data
+    };
+    api.updateDataObject(dataObjectName, cleanData, skillId);
+
+    // Trigger re-render for all tables (including this one)
+    api.updateUI();
+  } else {
+    // No data object subscription - update skill content directly (legacy behavior)
+    skill.content = JSON.stringify(newTableData);
+    api.notifyContentUpdated(skillId);
+  }
+}
+
 // Generate unique table ID for Grid.js
 let tableIdCounter = 1;
 function generateTableId(): string {
   return `table-grid-${tableIdCounter++}`;
 }
 
+// Generate unique data object name
+let dataObjectCounter = 1;
+function generateDataObjectName(): string {
+  return `table-data-${dataObjectCounter++}`;
+}
+
 export const tableSkill: SkillHandler = {
   type: 'table',
 
-  onDataObjectUpdated: (skill: Skill, _dataObjectName: string, newData: any) => {
+  onDataObjectUpdated: (skill: Skill, dataObjectName: string, newData: any) => {
     // Update skill's content from the data object
-    skill.content = JSON.stringify(newData);
+    // Preserve the _data_object_name metadata so CRUD operations can find the subscription
+    const contentWithMeta = {
+      ...newData,
+      _data_object_name: dataObjectName
+    };
+    skill.content = JSON.stringify(contentWithMeta);
   },
 
   render: async (skill: Skill): Promise<string> => {
@@ -73,7 +121,7 @@ export const tableSkill: SkillHandler = {
     return [
       {
         name: 'create_table',
-        description: 'Creates a new table with specified columns and optional initial data. Can optionally create or reference a data object for shared data between skills. Returns JSON content and creates/subscribes to data object if specified.',
+        description: 'Creates a new table with specified columns and optional initial data. ALWAYS creates or references a data object - every table is backed by a data object for consistency and data sharing. Returns JSON content with auto-subscription metadata.',
         parameters: {
           type: 'object',
           properties: {
@@ -92,7 +140,7 @@ export const tableSkill: SkillHandler = {
             },
             data_object_name: {
               type: 'string',
-              description: 'Optional: Name for a data object. If it exists, use its data. If not, create it with this table\'s data. This enables data sharing between multiple skills.',
+              description: 'Optional: Name for the data object. If provided and exists, uses that data. If provided and new, creates it. If not provided, auto-generates a unique name.',
             },
             skill_id: {
               type: 'string',
@@ -104,25 +152,28 @@ export const tableSkill: SkillHandler = {
         },
         execute: async (input: any) => {
           let tableData: TableData;
+          let dataObjectName: string;
 
           // Case 1: data_object_name provided and exists - use data from data object
           if (input.data_object_name && api.hasDataObject(input.data_object_name)) {
-            const existingData = api.getDataObject(input.data_object_name);
+            dataObjectName = input.data_object_name;
+            const existingData = api.getDataObject(dataObjectName);
             tableData = {
               ...existingData,
-              _data_object_name: input.data_object_name // Store for auto-subscription
+              _data_object_name: dataObjectName // Store for auto-subscription
             };
 
             // If skill_id provided, subscribe it to the data object
             if (input.skill_id) {
-              api.subscribeToDataObject(input.data_object_name, input.skill_id);
-              return JSON.stringify(tableData) + `\n\n[Subscribed ${input.skill_id} to data object "${input.data_object_name}"]`;
+              api.subscribeToDataObject(dataObjectName, input.skill_id);
+              return JSON.stringify(tableData) + `\n\n[Subscribed ${input.skill_id} to data object "${dataObjectName}"]`;
             }
 
-            return JSON.stringify(tableData) + `\n\n[Using data from existing data object "${input.data_object_name}". Table will auto-subscribe when created.]`;
+            return JSON.stringify(tableData) + `\n\n[Using data from existing data object "${dataObjectName}". Table will auto-subscribe when created.]`;
           }
 
-          // Case 2 & 3: Create table data from provided columns/data
+          // Case 2 & 3: Create new table data from provided columns/data
+          // Require columns when creating new table
           if (!input.columns) {
             return 'Error: columns parameter is required when creating new table data';
           }
@@ -141,25 +192,28 @@ export const tableSkill: SkillHandler = {
             }
           }
 
-          // Case 2: data_object_name provided but doesn't exist - register it
-          if (input.data_object_name) {
-            // Register the data object (without _data_object_name metadata)
-            const dataToRegister = {
-              columns: tableData.columns,
-              data: tableData.data
-            };
-            api.registerDataObject(input.data_object_name, 'tabledata', dataToRegister);
+          // Determine data object name: use provided or auto-generate
+          dataObjectName = input.data_object_name || generateDataObjectName();
 
-            // Return table content with metadata for auto-subscription
-            const tableDataWithMeta = {
-              ...tableData,
-              _data_object_name: input.data_object_name
-            };
-            return JSON.stringify(tableDataWithMeta) + `\n\n[Registered as data object "${input.data_object_name}". Table will auto-subscribe when created.]`;
-          }
+          // Register the data object (without _data_object_name metadata)
+          const dataToRegister = {
+            columns: tableData.columns,
+            data: tableData.data
+          };
+          api.registerDataObject(dataObjectName, 'tabledata', dataToRegister);
 
-          // Case 3: No data_object_name - just return table content
-          return JSON.stringify(tableData);
+          // Return table content with metadata for auto-subscription
+          const tableDataWithMeta = {
+            ...tableData,
+            _data_object_name: dataObjectName
+          };
+
+          const wasAutoGenerated = !input.data_object_name;
+          const message = wasAutoGenerated
+            ? `\n\n[Auto-created data object "${dataObjectName}". Table will auto-subscribe when created.]`
+            : `\n\n[Registered as data object "${dataObjectName}". Table will auto-subscribe when created.]`;
+
+          return JSON.stringify(tableDataWithMeta) + message;
         },
       },
       {
@@ -197,9 +251,8 @@ export const tableSkill: SkillHandler = {
           }
 
           tableData.data.push(input.row);
-          skill.content = JSON.stringify(tableData);
+          updateTableData(skill, tableData, api, input.skill_id);
 
-          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Row added to table`);
           return `Row added. Table now has ${tableData.data.length} rows.`;
         },
@@ -241,9 +294,8 @@ export const tableSkill: SkillHandler = {
           tableData.columns.push(input.column_name);
           tableData.data.forEach(row => row.push(defaultValue));
 
-          skill.content = JSON.stringify(tableData);
+          updateTableData(skill, tableData, api, input.skill_id);
 
-          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Column "${input.column_name}" added`);
           return `Column "${input.column_name}" added. Table now has ${tableData.columns.length} columns.`;
         },
@@ -295,9 +347,8 @@ export const tableSkill: SkillHandler = {
           const oldValue = tableData.data[input.row_index][input.column_index];
           tableData.data[input.row_index][input.column_index] = input.value;
 
-          skill.content = JSON.stringify(tableData);
+          updateTableData(skill, tableData, api, input.skill_id);
 
-          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Cell updated`);
           return `Cell [${input.row_index}, ${input.column_index}] updated from "${oldValue}" to "${input.value}"`;
         },
@@ -336,9 +387,8 @@ export const tableSkill: SkillHandler = {
           }
 
           tableData.data.splice(input.row_index, 1);
-          skill.content = JSON.stringify(tableData);
+          updateTableData(skill, tableData, api, input.skill_id);
 
-          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Row ${input.row_index} deleted`);
           return `Row ${input.row_index} deleted. Table now has ${tableData.data.length} rows.`;
         },
@@ -431,9 +481,8 @@ export const tableSkill: SkillHandler = {
             return input.order === 'asc' ? comparison : -comparison;
           });
 
-          skill.content = JSON.stringify(tableData);
+          updateTableData(skill, tableData, api, input.skill_id);
 
-          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Table sorted by "${columnName}" (${input.order})`);
           return `Table sorted by column "${columnName}" in ${input.order === 'asc' ? 'ascending' : 'descending'} order`;
         },
@@ -632,10 +681,11 @@ export const tableSkill: SkillHandler = {
 
   Table Management Tools:
   * create_table: Define columns and optional initial data
-    - NEW: Supports data_object_name parameter for automatic data object creation/reference
-    - If data_object_name exists: uses data from that data object
-    - If data_object_name doesn't exist: creates new data object with table data
-    - Simplifies workflow for data sharing between tables
+    - IMPORTANT: ALWAYS creates or references a data object (every table is backed by one)
+    - If data_object_name provided and exists: uses data from that data object
+    - If data_object_name provided but new: creates new data object with that name
+    - If data_object_name not provided: auto-generates a unique data object name
+    - Tables automatically subscribe to their data objects on creation
   * add_table_row: Append new rows to the table
   * add_table_column: Add new columns (fills existing rows with default value)
   * update_table_cell: Update specific cell values by row/column index
@@ -656,21 +706,29 @@ export const tableSkill: SkillHandler = {
   * Programmatic sorting: sort_table_by_column(skill_id, column_index, order="asc"/"desc")
   * Smart sorting: Automatically detects numbers vs text for proper sorting
 
-  Basic workflow:
-  1. tableContent = create_table(columns=["Name", "Age"], data=[["Alice", "25"], ["Bob", "30"]])
-  2. create_skill(type='table', content=tableContent)
+  Basic workflow (data object auto-created):
+  1. content = create_table(columns=["Name", "Age"], data=[["Alice", "25"], ["Bob", "30"]])
+     # Auto-creates data object "table-data-1" and returns content with metadata
+  2. create_skill(type='table', content=content)  # skill-1 (auto-subscribes to "table-data-1")
   3. add_table_row(skill_id="skill-1", row=["Charlie", "20"])
-  4. sort_table_by_column(skill_id="skill-1", column_index=1, order="asc")  # Sort by Age ascending
+     # Updates "table-data-1" → all subscribed tables update automatically
+  4. sort_table_by_column(skill_id="skill-1", column_index=1, order="asc")
+     # Updates "table-data-1" → all subscribed tables update automatically
 
-  Simplified data sharing workflow (RECOMMENDED):
+  Data sharing workflow (explicit data object name):
   1. content = create_table(columns=["Name", "Age"], data=[["Alice", "25"]], data_object_name="users")
-     # This creates the table data AND registers it as a data object in one step!
-  2. create_skill(type='table', content=content, altText="Table 1")  # skill-1 (auto-subscribes!)
-  3. content2 = create_table(data_object_name="users")  # Reuse existing data object
-  4. create_skill(type='table', content=content2, altText="Table 2")  # skill-2 (auto-subscribes!)
-  5. Now both tables share the same data! Update via update_table_data_object to sync both.
+     # Creates data object "users" with initial data
+  2. create_skill(type='table', content=content, altText="Table 1")  # skill-1 (auto-subscribes to "users")
+  3. content2 = create_table(data_object_name="users")  # Reuses existing "users" data object
+  4. create_skill(type='table', content=content2, altText="Table 2")  # skill-2 (auto-subscribes to "users")
+  5. add_table_row(skill_id="skill-1", row=["Bob", "30"])
+     # Updates "users" data object → BOTH tables update automatically!
 
-  Note: Tables automatically subscribe to their data objects when created - no manual subscription needed!
+  Key benefits:
+  - Every table has a data object backing it (single source of truth)
+  - All CRUD operations update the data object (not individual tables)
+  - Multiple tables can share the same data object
+  - No manual subscription or propagation needed
 
   Advanced data sharing example (manual approach):
   1. create_skill(type='table', content=tableContent, altText="Master Table")  # skill-1
