@@ -3,6 +3,7 @@ import { Skill, SkillType, getSkillHandler, getAllTools, getAllInstructions } fr
 import { renderMermaidDiagrams } from './skills/mermaid';
 import { renderPDFDocuments, attachPDFNavigationListeners } from './skills/pdf';
 import { attachOutlineToggleListeners } from './skills/outliner';
+import { dataRegistry } from './dataRegistry';
 
 // Re-export for backward compatibility
 export type { Skill, SkillType };
@@ -318,6 +319,10 @@ export function deleteSkill(skillId: string): string {
   }
 
   const rowNumber = rows[index].rowNumber;
+
+  // Clean up data object subscriptions
+  dataRegistry.unsubscribeAll(skillId);
+
   rows.splice(index, 1);
 
   updateScratchpadUI();
@@ -566,6 +571,53 @@ export function getScratchpadTools() {
     notifyContentUpdated: (skillId: string) => {
       lastModifiedSkillId = skillId;
       updateScratchpadUI();
+    },
+    // Data object registry methods
+    registerDataObject: (name: string, type: string, data: any) => {
+      dataRegistry.registerDataObject(name, type, data);
+    },
+    subscribeToDataObject: (dataObjectName: string, skillId: string) => {
+      const skill = api.getSkillById(skillId);
+      if (!skill) {
+        console.error(`[ScratchpadAPI] Cannot subscribe: skill ${skillId} not found`);
+        return;
+      }
+
+      const handler = getSkillHandler(skill.type);
+      const onUpdate = (name: string, data: any) => {
+        if (handler.onDataObjectUpdated) {
+          handler.onDataObjectUpdated(skill, name, data);
+          updateScratchpadUI(); // Re-render after data update
+        }
+      };
+
+      dataRegistry.subscribe(dataObjectName, skillId, onUpdate);
+
+      // Track subscription on skill
+      if (!skill.dataObjectSubscriptions) {
+        skill.dataObjectSubscriptions = [];
+      }
+      if (!skill.dataObjectSubscriptions.includes(dataObjectName)) {
+        skill.dataObjectSubscriptions.push(dataObjectName);
+      }
+    },
+    unsubscribeFromDataObject: (dataObjectName: string, skillId: string) => {
+      const skill = api.getSkillById(skillId);
+      dataRegistry.unsubscribe(dataObjectName, skillId);
+
+      // Remove from skill's subscriptions list
+      if (skill?.dataObjectSubscriptions) {
+        skill.dataObjectSubscriptions = skill.dataObjectSubscriptions.filter(n => n !== dataObjectName);
+      }
+    },
+    updateDataObject: (dataObjectName: string, newData: any, updaterSkillId?: string) => {
+      dataRegistry.updateData(dataObjectName, newData, updaterSkillId);
+    },
+    getDataObject: (dataObjectName: string) => {
+      return dataRegistry.getData(dataObjectName);
+    },
+    hasDataObject: (dataObjectName: string) => {
+      return dataRegistry.hasDataObject(dataObjectName);
     },
   };
 

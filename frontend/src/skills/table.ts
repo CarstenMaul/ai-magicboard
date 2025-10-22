@@ -25,6 +25,11 @@ function generateTableId(): string {
 export const tableSkill: SkillHandler = {
   type: 'table',
 
+  onDataObjectUpdated: (skill: Skill, dataObjectName: string, newData: any) => {
+    // Update skill's content from the data object
+    skill.content = JSON.stringify(newData);
+  },
+
   render: async (skill: Skill): Promise<string> => {
     const tableData = parseTableContent(skill.content);
     const tableId = generateTableId();
@@ -383,6 +388,181 @@ export const tableSkill: SkillHandler = {
           return `Table sorted by column "${columnName}" in ${input.order === 'asc' ? 'ascending' : 'descending'} order`;
         },
       },
+      {
+        name: 'register_table_data_object',
+        description: 'Registers this table\'s data as a shared data object that other skills can subscribe to. This allows multiple skills to share and react to the same table data.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the table (e.g., "skill-1")',
+            },
+            data_object_name: {
+              type: 'string',
+              description: 'Unique name for the data object (e.g., "sales-data", "user-list")',
+            },
+          },
+          required: ['skill_id', 'data_object_name'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'table') {
+            return `Skill ${input.skill_id} is not a table skill (type: ${skill.type})`;
+          }
+
+          const tableData = parseTableContent(skill.content);
+          api.registerDataObject(input.data_object_name, 'tabledata', tableData);
+
+          api.showToast(`Data object "${input.data_object_name}" registered`);
+          return `Table data registered as data object "${input.data_object_name}". Other skills can now subscribe to this data.`;
+        },
+      },
+      {
+        name: 'subscribe_table_to_data_object',
+        description: 'Subscribes this table skill to an existing data object. When the data object is updated, this table will automatically update to reflect the changes.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the table to subscribe (e.g., "skill-1")',
+            },
+            data_object_name: {
+              type: 'string',
+              description: 'Name of the data object to subscribe to (must already exist)',
+            },
+          },
+          required: ['skill_id', 'data_object_name'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'table') {
+            return `Skill ${input.skill_id} is not a table skill (type: ${skill.type})`;
+          }
+
+          if (!api.hasDataObject(input.data_object_name)) {
+            return `Error: Data object "${input.data_object_name}" does not exist. Register it first using register_table_data_object or another registration tool.`;
+          }
+
+          api.subscribeToDataObject(input.data_object_name, input.skill_id);
+
+          // Update table with current data from the data object
+          const currentData = api.getDataObject(input.data_object_name);
+          if (currentData) {
+            skill.content = JSON.stringify(currentData);
+            api.notifyContentUpdated(input.skill_id);
+          }
+
+          api.showToast(`Subscribed to "${input.data_object_name}"`);
+          return `Table ${input.skill_id} subscribed to data object "${input.data_object_name}". It will now update automatically when the data changes.`;
+        },
+      },
+      {
+        name: 'unsubscribe_table_from_data_object',
+        description: 'Unsubscribes this table from a data object. The table will no longer update when the data object changes.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the table to unsubscribe (e.g., "skill-1")',
+            },
+            data_object_name: {
+              type: 'string',
+              description: 'Name of the data object to unsubscribe from',
+            },
+          },
+          required: ['skill_id', 'data_object_name'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'table') {
+            return `Skill ${input.skill_id} is not a table skill (type: ${skill.type})`;
+          }
+
+          api.unsubscribeFromDataObject(input.data_object_name, input.skill_id);
+
+          api.showToast(`Unsubscribed from "${input.data_object_name}"`);
+          return `Table ${input.skill_id} unsubscribed from data object "${input.data_object_name}".`;
+        },
+      },
+      {
+        name: 'update_table_data_object',
+        description: 'Updates a data object with new table data. All skills subscribed to this data object will be notified and automatically update their content.',
+        parameters: {
+          type: 'object',
+          properties: {
+            data_object_name: {
+              type: 'string',
+              description: 'Name of the data object to update',
+            },
+            table_data: {
+              type: 'object',
+              properties: {
+                columns: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Array of column names',
+                },
+                data: {
+                  type: 'array',
+                  items: {
+                    type: 'array',
+                    items: { type: 'string' }
+                  },
+                  description: 'Array of rows, where each row is an array of values',
+                },
+              },
+              required: ['columns', 'data'],
+              description: 'The new table data structure',
+            },
+            updater_skill_id: {
+              type: 'string',
+              description: 'Optional: ID of the skill making the update (prevents it from being notified)',
+            },
+          },
+          required: ['data_object_name', 'table_data'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          if (!api.hasDataObject(input.data_object_name)) {
+            return `Error: Data object "${input.data_object_name}" does not exist. Register it first.`;
+          }
+
+          const tableData: TableData = {
+            columns: input.table_data.columns || [],
+            data: input.table_data.data || [],
+          };
+
+          // Validate data rows match column count
+          if (tableData.data.length > 0) {
+            const columnCount = tableData.columns.length;
+            const invalidRows = tableData.data.filter(row => row.length !== columnCount);
+            if (invalidRows.length > 0) {
+              return `Error: All data rows must have ${columnCount} values to match column count`;
+            }
+          }
+
+          api.updateDataObject(input.data_object_name, tableData, input.updater_skill_id);
+          api.updateUI();
+
+          api.showToast(`Data object "${input.data_object_name}" updated`);
+          return `Data object "${input.data_object_name}" updated. All subscribed skills have been notified.`;
+        },
+      },
     ];
   },
 
@@ -409,6 +589,14 @@ export const tableSkill: SkillHandler = {
   * read_table_data: View complete table structure and data
   * sort_table_by_column: Sort table by column index (asc/desc) - supports numeric and alphabetic sorting
 
+  Data Object Sharing (Advanced):
+  * register_table_data_object: Register table data as a shared data object
+  * subscribe_table_to_data_object: Subscribe table to an existing data object (auto-updates)
+  * unsubscribe_table_from_data_object: Unsubscribe table from a data object
+  * update_table_data_object: Update data object (notifies all subscribed skills)
+  * Use case: Multiple tables can share the same data - update one, all update automatically
+  * Subscriber skills reference the data object (not copies) and get notified of changes
+
   Sorting:
   * Users can click column headers to sort interactively
   * Programmatic sorting: sort_table_by_column(skill_id, column_index, order="asc"/"desc")
@@ -418,6 +606,13 @@ export const tableSkill: SkillHandler = {
   1. tableContent = create_table(columns=["Name", "Age"], data=[["Alice", "25"], ["Bob", "30"]])
   2. create_skill(type='table', content=tableContent)
   3. add_table_row(skill_id="skill-1", row=["Charlie", "20"])
-  4. sort_table_by_column(skill_id="skill-1", column_index=1, order="asc")  # Sort by Age ascending`;
+  4. sort_table_by_column(skill_id="skill-1", column_index=1, order="asc")  # Sort by Age ascending
+
+  Data sharing example:
+  1. create_skill(type='table', content=tableContent, altText="Master Table")  # skill-1
+  2. register_table_data_object(skill_id="skill-1", data_object_name="shared-data")
+  3. create_skill(type='table', content='{"columns":[],"data":[]}', altText="Mirror Table")  # skill-2
+  4. subscribe_table_to_data_object(skill_id="skill-2", data_object_name="shared-data")
+  5. Now updating shared-data will update both tables automatically!`;
   },
 };

@@ -23,6 +23,7 @@ export interface Skill {
   displayHeight?: number; // Height in pixels (keeps aspect ratio)
   gallery?: GalleryImage[]; // Optional gallery mode for image skills
   annotation?: string; // Optional annotation text shown below the skill (for images, diagrams, etc.)
+  dataObjectSubscriptions?: string[]; // Track which data objects this skill subscribes to
 }
 
 // Tool definition interface
@@ -41,6 +42,13 @@ export interface ScratchpadAPI {
   showToast: (message: string) => void;
   createSkill: (type: SkillType, content: string, altText?: string) => string;
   notifyContentUpdated: (skillId: string) => void;
+  // Data object registry methods
+  registerDataObject: (name: string, type: string, data: any) => void;
+  subscribeToDataObject: (dataObjectName: string, skillId: string) => void;
+  unsubscribeFromDataObject: (dataObjectName: string, skillId: string) => void;
+  updateDataObject: (dataObjectName: string, newData: any, updaterSkillId?: string) => void;
+  getDataObject: (dataObjectName: string) => any;
+  hasDataObject: (dataObjectName: string) => boolean;
 }
 
 // Base skill handler interface
@@ -53,4 +61,5 @@ export interface SkillHandler {
   getImage: (skill: Skill, imageIndex?: number) => Promise<{ type: string; data: string; mediaType: string } | string>;
   getTools?: (api: ScratchpadAPI) => ToolDefinition[];
   getInstructions?: () => string;
+  onDataObjectUpdated?: (skill: Skill, dataObjectName: string, newData: any) => void;
 }
