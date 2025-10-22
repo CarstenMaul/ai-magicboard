@@ -17,7 +17,7 @@ export function getGeneralTools(
   },
   api?: ScratchpadAPI
 ): ToolDefinition[] {
-  return [
+  const tools: ToolDefinition[] = [
     {
       name: 'create_skill',
       description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image" for images from URL or base64 data URI, "table" for interactive data tables.',
@@ -236,7 +236,7 @@ export function getGeneralTools(
           additionalProperties: true,
         },
         execute: async () => {
-          const names = api.getAllDataObjectNames();
+          const names = api!.getAllDataObjectNames();
           if (names.length === 0) {
             return 'No data objects registered.';
           }
@@ -258,7 +258,7 @@ export function getGeneralTools(
           additionalProperties: true,
         },
         execute: async (input: any) => {
-          const info = api.getDataObjectInfo(input.data_object_name);
+          const info = api!.getDataObjectInfo(input.data_object_name);
           if (!info) {
             return `Data object "${input.data_object_name}" not found.`;
           }

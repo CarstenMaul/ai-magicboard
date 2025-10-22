@@ -25,7 +25,7 @@ function generateTableId(): string {
 export const tableSkill: SkillHandler = {
   type: 'table',
 
-  onDataObjectUpdated: (skill: Skill, dataObjectName: string, newData: any) => {
+  onDataObjectUpdated: (skill: Skill, _dataObjectName: string, newData: any) => {
     // Update skill's content from the data object
     skill.content = JSON.stringify(newData);
   },

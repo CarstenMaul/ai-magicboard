@@ -89,7 +89,12 @@ mcp_manager: Optional[MCPManager] = None
 # Configure CORS to allow frontend to access the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Common dev server ports
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175"
+    ],  # Common dev server ports
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
