@@ -295,18 +295,24 @@ async function connectAgent(): Promise<void> {
         if (typeof result === 'object' && result !== null && result.type === 'image') {
           // Convert to data URI format for session.addImage()
           const dataUri = `data:${result.mediaType};base64,${result.data}`;
+          const imageSizeKB = Math.round(result.data.length / 1024);
+
+          console.log(`[Image Tool] Sending image from ${t.name}: ${imageSizeKB}KB (${result.mediaType})`);
 
           // Send image to AI for visual analysis
           if (session) {
-            session.addImage(dataUri);
-            console.log(`✓ Sent image to AI from tool: ${t.name} (size: ${result.data.length} chars)`);
+            try {
+              session.addImage(dataUri);
+              console.log(`✓ Sent image to AI from tool: ${t.name} (${imageSizeKB}KB)`);
+              return `Image has been sent to you for visual analysis (${imageSizeKB}KB). You can now see and describe what's in the image.`;
+            } catch (error) {
+              console.error(`❌ Failed to send image from ${t.name}:`, error);
+              return `Failed to send image for visual analysis due to: ${error instanceof Error ? error.message : 'Unknown error'}. The image has been added to the scratchpad for the user to view, but you cannot analyze it visually.`;
+            }
           } else {
             console.warn(`⚠ Session not available to send image from tool: ${t.name}`);
+            return `Session not available - image was added to scratchpad but cannot be sent for visual analysis.`;
           }
-
-          // Return text description instead of image object
-          // This tells the AI that the image has been sent and is ready for analysis
-          return `Image has been sent to you for visual analysis. You can now see and describe what's in the image.`;
         }
 
         // For non-image results, return as-is

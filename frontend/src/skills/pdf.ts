@@ -545,8 +545,10 @@ export const pdfSkill: SkillHandler = {
               viewport: viewport,
             }).promise;
 
-            // Convert canvas to base64 with data URI prefix
-            const base64WithPrefix = canvas.toDataURL('image/png');
+            // Convert canvas to JPEG with 25% quality for smaller file size
+            // This is necessary because RTCDataChannel has message size limits (typically 256KB)
+            // JPEG at 25% quality provides good enough visual analysis while keeping size down
+            const base64WithPrefix = canvas.toDataURL('image/jpeg', 0.25);
 
             // Extract base64 data without the data URI prefix for OpenAI SDK
             const base64Data = base64WithPrefix.split(',')[1];
@@ -557,13 +559,14 @@ export const pdfSkill: SkillHandler = {
             api.createSkill('image', base64WithPrefix, altText);
 
             // Show toast notification
-            api.showToast(`Converted page ${pageNum} to image`);
+            const sizeKB = Math.round(base64Data.length / 1024);
+            api.showToast(`Converted page ${pageNum} to image (${sizeKB}KB)`);
 
             // Return image in OpenAI SDK format for AI visual analysis
             return {
               type: 'image',
               data: base64Data,
-              mediaType: 'image/png'
+              mediaType: 'image/jpeg'
             };
           } catch (error) {
             return `Failed to convert PDF page to image: ${error instanceof Error ? error.message : 'Unknown error'}`;
