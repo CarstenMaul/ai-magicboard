@@ -24,6 +24,7 @@ let nextSkillId = 1;
 let nextRowNumber = 1;
 let fullscreenSkillId: string | null = null;
 let lastModifiedSkillId: string | null = null; // Track which skill was just modified for auto-scroll
+let activeCharts: Chart[] = []; // Track active Chart.js instances for cleanup
 
 // Generate a short description from skill content
 function generateShortDescription(skill: Skill): string {
@@ -149,6 +150,16 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
       }
     });
 
+    // Destroy all old Chart.js instances before creating new ones
+    activeCharts.forEach(chart => {
+      try {
+        chart.destroy();
+      } catch (e) {
+        console.error('Error destroying chart:', e);
+      }
+    });
+    activeCharts = [];
+
     // Initialize Chart.js charts
     const chartCanvases = scratchpadDiv.querySelectorAll('.chart-canvas');
     const hasChart = chartCanvases.length > 0;
@@ -161,7 +172,7 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
           const ctx = (canvas as HTMLCanvasElement).getContext('2d');
 
           if (ctx) {
-            new Chart(ctx, {
+            const chart = new Chart(ctx, {
               type: chartData.type,
               data: {
                 labels: chartData.labels,
@@ -178,6 +189,8 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
                 },
               },
             });
+            // Track the chart instance for cleanup
+            activeCharts.push(chart);
           }
         } catch (error) {
           console.error('Failed to render Chart.js chart:', error);
@@ -293,12 +306,12 @@ export function createSkill(type: SkillType, content: string, altText?: string):
   rows.push(row);
   lastModifiedSkillId = skill.id; // Set for auto-scroll to new skill
 
-  // Auto-subscribe table skills to data objects if _data_object_name is present
-  if (type === 'table') {
+  // Auto-subscribe table and chart skills to data objects if _data_object_name is present
+  if (type === 'table' || type === 'chart') {
     try {
-      const tableData = JSON.parse(content);
-      if (tableData._data_object_name && dataRegistry.hasDataObject(tableData._data_object_name)) {
-        const dataObjectName = tableData._data_object_name;
+      const skillData = JSON.parse(content);
+      if (skillData._data_object_name && dataRegistry.hasDataObject(skillData._data_object_name)) {
+        const dataObjectName = skillData._data_object_name;
 
         // Set up the callback for data updates
         const handler = getSkillHandler(type);
@@ -318,7 +331,7 @@ export function createSkill(type: SkillType, content: string, altText?: string):
         }
         skill.dataObjectSubscriptions.push(dataObjectName);
 
-        console.log(`[Auto-subscribe] Table ${skill.id} subscribed to data object "${dataObjectName}"`);
+        console.log(`[Auto-subscribe] ${type} ${skill.id} subscribed to data object "${dataObjectName}"`);
         showToast(`${type} skill created and subscribed to ${dataObjectName}`);
         updateScratchpadUI();
         return `Skill created: ${skill.id} in row ${row.rowNumber} (auto-subscribed to "${dataObjectName}")`;

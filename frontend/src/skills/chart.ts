@@ -1,4 +1,5 @@
 import { Skill, SkillHandler, ScratchpadAPI, ToolDefinition } from './types';
+import { Chart } from 'chart.js';
 
 // Chart data structure
 interface ChartDataset {
@@ -529,9 +530,59 @@ export const chartSkill: SkillHandler = {
     ];
   },
 
-  getImage: async (skill: Skill, _imageIndex: number = 1): Promise<string> => {
+  getImage: async (skill: Skill, _imageIndex: number = 1): Promise<{ type: string; data: string; mediaType: string }> => {
     const chartData = parseChartContent(skill.content);
-    return `Chart skills do not provide images for visual analysis. This is a ${chartData.type} chart with ${chartData.datasets.length} dataset${chartData.datasets.length !== 1 ? 's' : ''}.`;
+
+    // Create a temporary canvas element to render the chart
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 600;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to get canvas 2D context for chart rendering');
+    }
+
+    // Create a Chart.js instance on the temporary canvas
+    const chart = new Chart(ctx, {
+      type: chartData.type,
+      data: {
+        labels: chartData.labels,
+        datasets: chartData.datasets,
+      },
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        animation: false, // Disable animations for immediate rendering
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+          },
+        },
+      },
+    });
+
+    // Wait for chart to render
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Extract image data from canvas
+    const dataURL = canvas.toDataURL('image/png');
+
+    // Clean up: destroy the chart instance
+    chart.destroy();
+
+    // Parse the data URL to extract base64 data
+    const match = dataURL.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      throw new Error('Failed to extract image data from chart canvas');
+    }
+
+    return {
+      type: 'image',
+      data: match[2], // Base64 string without prefix
+      mediaType: match[1], // e.g., 'image/png'
+    };
   },
 
   getInstructions: (): string => {

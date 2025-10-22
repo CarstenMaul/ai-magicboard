@@ -81,6 +81,16 @@ export const tableSkill: SkillHandler = {
 
   render: async (skill: Skill): Promise<string> => {
     const tableData = parseTableContent(skill.content);
+
+    // Defensive check: ensure we have valid table data
+    if (!tableData.columns || !tableData.data) {
+      return `
+        <div class="skill-content table-skill">
+          <p style="color: #888; font-style: italic;">Invalid table data - this table may be subscribed to incompatible data</p>
+        </div>
+      `;
+    }
+
     const tableId = generateTableId();
 
     // Return a div that will be populated by Grid.js
@@ -96,6 +106,10 @@ export const tableSkill: SkillHandler = {
 
   generateDescription: (skill: Skill): string => {
     const tableData = parseTableContent(skill.content);
+    // Defensive check: ensure we have valid table data
+    if (!tableData.columns || !tableData.data) {
+      return 'Invalid table data';
+    }
     if (tableData.columns.length === 0) {
       return 'Empty table';
     }
@@ -104,6 +118,11 @@ export const tableSkill: SkillHandler = {
 
   getContentAsMarkdown: (skill: Skill): string => {
     const tableData = parseTableContent(skill.content);
+
+    // Defensive check: ensure we have valid table data
+    if (!tableData.columns || !tableData.data) {
+      return '_Invalid table data_';
+    }
 
     if (tableData.columns.length === 0) {
       return '_Empty table_';
@@ -667,6 +686,12 @@ export const tableSkill: SkillHandler = {
 
   getImage: async (skill: Skill, _imageIndex: number = 1): Promise<string> => {
     const tableData = parseTableContent(skill.content);
+
+    // Defensive check: ensure we have valid table data
+    if (!tableData.columns || !tableData.data) {
+      return `Table skills do not provide images for visual analysis. This table skill contains invalid data.`;
+    }
+
     return `Table skills do not provide images for visual analysis. This is a data table skill with ${tableData.columns.length} column${tableData.columns.length !== 1 ? 's' : ''} and ${tableData.data.length} row${tableData.data.length !== 1 ? 's' : ''}. Use read_table_data to read the table content instead.`;
   },
 
