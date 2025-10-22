@@ -26,15 +26,12 @@ export const tableSkill: SkillHandler = {
   type: 'table',
 
   render: async (skill: Skill): Promise<string> => {
-    console.log('Table render - skill.content:', skill.content);
     const tableData = parseTableContent(skill.content);
-    console.log('Table render - parsed tableData:', tableData);
     const tableId = generateTableId();
 
     // Return a div that will be populated by Grid.js
     // We'll use a data attribute to store the table data
     const dataAttr = JSON.stringify(tableData).replace(/"/g, '&quot;');
-    console.log('Table render - dataAttr:', dataAttr);
 
     return `
       <div class="skill-content table-skill">
@@ -92,12 +89,10 @@ export const tableSkill: SkillHandler = {
           additionalProperties: true,
         },
         execute: async (input: any) => {
-          console.log('create_table input:', input);
           const tableData: TableData = {
             columns: input.columns || [],
             data: input.data || [],
           };
-          console.log('create_table tableData:', tableData);
 
           // Validate data rows match column count
           if (tableData.data.length > 0) {
@@ -109,9 +104,7 @@ export const tableSkill: SkillHandler = {
           }
 
           // This will be called via create_skill with type='table'
-          const result = JSON.stringify(tableData);
-          console.log('create_table returning:', result);
-          return result;
+          return JSON.stringify(tableData);
         },
       },
       {
