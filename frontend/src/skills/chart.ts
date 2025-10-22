@@ -527,6 +527,38 @@ export const chartSkill: SkillHandler = {
           return `Colors updated for dataset ${input.dataset_index}`;
         },
       },
+      {
+        name: 'look_at_chart',
+        description: 'Sends a chart to you as an image for visual analysis. The chart is rendered and sent directly so you can SEE it and describe what it shows. Use this when you need to visually analyze or describe a chart.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the chart (e.g., "skill-1")',
+            },
+          },
+          required: ['skill_id'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'chart') {
+            return `Skill ${input.skill_id} is not a chart skill (type: ${skill.type})`;
+          }
+
+          try {
+            const result = await chartSkill.getImage!(skill);
+            return result; // Returns {type: 'image', data: base64, mediaType: 'image/png'}
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return `Failed to get chart image: ${errorMessage}`;
+          }
+        },
+      },
     ];
   },
 
@@ -606,6 +638,10 @@ export const chartSkill: SkillHandler = {
   * remove_chart_dataset: Remove dataset by index
   * update_chart_labels: Update chart labels (X-axis or categories)
   * set_dataset_colors: Set custom colors for a dataset
+  * look_at_chart(skill_id): Sends the chart to you as an image for visual analysis
+    - IMPORTANT: The chart is rendered as PNG and sent directly so you can SEE it
+    - Use when you need to visually analyze or describe what a chart shows
+    - Example: look_at_chart("skill-1") to see the chart as an image
 
   Basic workflow (auto-created data object):
   1. content = create_chart(chart_type='bar', labels=['Q1','Q2','Q3'], datasets=[{label:'Sales', data:[100,150,120]}])
