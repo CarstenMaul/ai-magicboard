@@ -36,6 +36,7 @@ export interface ToolDefinition {
 // Scratchpad API that skills can use
 export interface ScratchpadAPI {
   getSkillById: (skillId: string) => Skill | undefined;
+  getAllSkills: () => Skill[];
   updateUI: () => void;
   showToast: (message: string) => void;
   createSkill: (type: SkillType, content: string, altText?: string) => string;
@@ -48,7 +49,7 @@ export interface SkillHandler {
   generateDescription: (skill: Skill) => string;
   getContentAsMarkdown: (skill: Skill) => string;
   canResize?: boolean;
-  getBase64?: (skill: Skill) => Promise<{ skillId: string; type: string; mimeType: string; base64Data: string; altText?: string; [key: string]: any }>;
+  getImage?: (skill: Skill, imageIndex: number) => Promise<{ type: string; data: string; mediaType: string }>;
   getTools?: (api: ScratchpadAPI) => ToolDefinition[];
   getInstructions?: () => string;
 }

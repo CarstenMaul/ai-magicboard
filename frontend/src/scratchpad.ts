@@ -327,27 +327,9 @@ export function resetScratchpad(): void {
   updateScratchpadUI();
 }
 
-// Get image as base64 (for AI to "look" at images)
-export async function getImageBase64(skillId: string): Promise<string> {
-  const row = rows.find(r => r.skill.id === skillId);
-
-  if (!row) {
-    return `Skill ${skillId} not found`;
-  }
-
-  const { skill } = row;
-  const handler = getSkillHandler(skill.type);
-
-  if (!handler.getBase64) {
-    return `Skill ${skillId} does not support base64 conversion (type: ${skill.type})`;
-  }
-
-  try {
-    const result = await handler.getBase64(skill);
-    return JSON.stringify(result, null, 2);
-  } catch (error) {
-    return `Error getting base64 for skill ${skillId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-  }
+// Get all skills (for tools that need to access all skills)
+export function getAllSkills(): Skill[] {
+  return rows.map(r => r.skill);
 }
 
 // Set image display size
@@ -577,6 +559,7 @@ export function getScratchpadTools() {
       const row = rows.find(r => r.skill.id === skillId);
       return row?.skill;
     },
+    getAllSkills: () => getAllSkills(),
     updateUI: () => updateScratchpadUI(),
     showToast: (message: string) => showToast(message),
     createSkill: (type: SkillType, content: string, altText?: string) => createSkill(type, content, altText),

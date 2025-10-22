@@ -112,7 +112,7 @@ export const imageSkill: SkillHandler = {
         </div>
       `;
     } else {
-      // Render single image (backward compatible)
+      // Render single image with index 1
       const alt = skill.altText || 'Image';
       const sizeStyle = getImageStyle(skill);
       const annotationHtml = skill.annotation
@@ -121,8 +121,13 @@ export const imageSkill: SkillHandler = {
 
       return `
         <div class="skill-content image-skill">
-          <img src="${skill.content}" alt="${alt}" ${sizeStyle} />
-          ${annotationHtml}
+          <div class="gallery-item">
+            <div class="gallery-image-wrapper">
+              <img src="${skill.content}" alt="${alt}" ${sizeStyle} />
+              <div class="image-index">1</div>
+            </div>
+            ${annotationHtml}
+          </div>
         </div>
       `;
     }
@@ -178,55 +183,103 @@ export const imageSkill: SkillHandler = {
     }
   },
 
-  getBase64: async (skill: Skill) => {
-    // For single images, handle based on content type
+  getImage: async (skill: Skill, imageIndex: number) => {
+    let targetImage: { content: string; altText?: string } | undefined;
+
+    // For single images, treat as index 1
     if (!skill.gallery || skill.gallery.length === 0) {
-      if (isDataURI(skill.content)) {
-        // Extract base64 data from data URI
-        const match = skill.content.match(/^data:([^;]+);base64,(.+)$/);
-        if (!match) {
-          throw new Error('Invalid base64 data URI format');
-        }
-
-        return {
-          skillId: skill.id,
-          type: 'image',
-          mimeType: match[1],
-          base64Data: match[2],
-          altText: skill.altText,
-        };
-      } else {
-        // Optimize and convert image URL to JPEG
-        const { mimeType, base64Data } = await optimizeImageForAI(skill.content);
-
-        return {
-          skillId: skill.id,
-          type: 'image',
-          url: skill.content,
-          mimeType: mimeType,
-          base64Data: base64Data,
-          altText: skill.altText,
-          optimized: true,
-          format: 'JPEG (70% quality, max 800x800)',
-        };
+      if (imageIndex !== 1) {
+        throw new Error(`Invalid image index ${imageIndex}. Single image only has index 1.`);
       }
+      targetImage = {
+        content: skill.content,
+        altText: skill.altText,
+      };
+    } else {
+      // For galleries, find by index
+      const galleryImage = skill.gallery.find(img => img.index === imageIndex);
+      if (!galleryImage) {
+        throw new Error(`Image with index ${imageIndex} not found in gallery`);
+      }
+      targetImage = {
+        content: galleryImage.content,
+        altText: galleryImage.altText,
+      };
     }
 
-    // For galleries, this would need to handle multiple images
-    throw new Error('Use get_gallery_image_base64 for gallery images');
+    // Process the image based on content type
+    if (isDataURI(targetImage.content)) {
+      // Extract base64 data from data URI
+      const match = targetImage.content.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) {
+        throw new Error('Invalid base64 data URI format');
+      }
+
+      // Return in format for AI visual analysis
+      return {
+        type: 'image',
+        data: match[2],
+        mediaType: match[1],
+      };
+    } else {
+      // Optimize and convert image URL to JPEG (25% quality to stay under RTCDataChannel limit)
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      return new Promise((resolve, reject) => {
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          // Convert to JPEG with 25% quality (same as PDF skill)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.25);
+          const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+
+          if (match) {
+            resolve({
+              type: 'image',
+              data: match[2],
+              mediaType: match[1],
+            });
+          } else {
+            reject(new Error('Failed to convert canvas to base64'));
+          }
+        };
+
+        img.onerror = () => {
+          reject(new Error('Failed to load image'));
+        };
+
+        img.src = targetImage.content;
+      });
+    }
   },
 
   getTools: (api: ScratchpadAPI): ToolDefinition[] => {
     return [
       {
-        name: 'get_image_base64',
-        description: 'Gets an image skill as base64-encoded data so you can "look at" and analyze it. For URL images, fetches and optimizes to JPEG (70% quality, max 800x800px). For base64 images, returns existing data. For single images only.',
+        name: 'look_at_image',
+        description: 'Sends an image to you for visual analysis by its index number. Single images have index 1, gallery images have indices 1, 2, 3, etc. Returns the image directly so you can see and describe what\'s in it. Use this when the user says "look at image 1" or "look at image 3".',
         parameters: {
           type: 'object',
           properties: {
             skill_id: {
               type: 'string',
-              description: 'The skill ID of the image to view (e.g., "skill-1")',
+              description: 'The skill ID of the image skill (e.g., "skill-1")',
+            },
+            image_index: {
+              type: 'number',
+              description: 'The image index to view (1 for single images, 1, 2, 3, etc. for galleries)',
+              default: 1,
             },
           },
           required: ['skill_id'],
@@ -240,11 +293,16 @@ export const imageSkill: SkillHandler = {
           if (skill.type !== 'image') {
             return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
           }
+
+          const imageIndex = input.image_index || 1;
+
           try {
-            const result = await imageSkill.getBase64!(skill);
-            return JSON.stringify(result, null, 2);
+            const result = await imageSkill.getImage!(skill, imageIndex);
+            const sizeKB = Math.round(result.data.length / 1024);
+            api.showToast(`Sending image ${imageIndex} to AI for visual analysis (${sizeKB}KB)`);
+            return result;
           } catch (error) {
-            return `Error getting base64: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            return `Error loading image: ${error instanceof Error ? error.message : 'Unknown error'}`;
           }
         },
       },
@@ -754,8 +812,15 @@ export const imageSkill: SkillHandler = {
     return `- 'image': Images from URLs or base64 data URIs. Supports both single images and galleries.
   * For single images: Use create_skill with type='image' and content=URL or data URI
   * For galleries: Use add_image_to_gallery to add multiple images to one skill
-  * URL images are optimized to JPEG (70% quality, max 800x800px) when viewed by AI
-  * Gallery images are indexed and displayed in a grid with index numbers in corners
+  * ALL images have index numbers displayed in the corner (single images = index 1, galleries = 1, 2, 3, etc.)
+
+  Visual Analysis:
+  * look_at_image(skill_id, image_index): Sends the image to you for visual analysis
+  * IMPORTANT: The image is sent directly to you so you can SEE it
+  * Single images always have index 1
+  * Use when user says "look at image 1" or "look at image 3"
+  * Example: look_at_image("skill-1", 2) to see the second image in a gallery
+  * Images are compressed to JPEG (25% quality) to fit RTCDataChannel limits
 
   Image Annotations (per individual image):
   * set_image_annotation: Add descriptive text that appears directly below a specific image
@@ -774,7 +839,6 @@ export const imageSkill: SkillHandler = {
 
   Individual Gallery Image Operations:
   * remove_image_from_gallery: Remove specific image by index
-  * read_gallery_images: List all images with their indices
-  * get_gallery_image_base64: View specific gallery image by index`;
+  * read_gallery_images: List all images with their indices`;
   },
 };
