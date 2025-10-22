@@ -123,6 +123,10 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
       if (tableData) {
         try {
           const data = JSON.parse(tableData.replace(/&quot;/g, '"'));
+          console.log('Initializing Grid.js table with data:', data);
+          console.log('Columns:', data.columns);
+          console.log('Rows:', data.data);
+
           new Grid({
             columns: data.columns,
             data: data.data,
@@ -134,6 +138,7 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
           }).render(wrapper as HTMLElement);
         } catch (error) {
           console.error('Failed to render Grid.js table:', error);
+          console.error('Table data was:', tableData);
         }
       }
     });
