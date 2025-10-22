@@ -125,6 +125,11 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
       if (tableData) {
         try {
           const data = JSON.parse(tableData.replace(/&quot;/g, '"'));
+
+          // Clear the wrapper to avoid Grid.js "container not empty" error
+          const wrapperElement = wrapper as HTMLElement;
+          wrapperElement.innerHTML = '';
+
           new Grid({
             columns: data.columns,
             data: data.data,
@@ -133,7 +138,7 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
             pagination: {
               limit: 10,
             },
-          }).render(wrapper as HTMLElement);
+          }).render(wrapperElement);
         } catch (error) {
           console.error('Failed to render Grid.js table:', error);
         }
