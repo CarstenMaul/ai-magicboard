@@ -349,7 +349,7 @@ export const imageSkill: SkillHandler = {
               delete img.displayWidth;
               delete img.displayHeight;
             });
-            api.updateUI();
+            api.notifyContentUpdated(input.skill_id);
             api.showToast(`All ${skill.gallery.length} images resized to ${input.size_percentage}%`);
             return `All ${skill.gallery.length} gallery images resized to ${input.size_percentage}%`;
           } else {
@@ -357,7 +357,7 @@ export const imageSkill: SkillHandler = {
             skill.displaySize = input.size_percentage;
             delete skill.displayWidth;
             delete skill.displayHeight;
-            api.updateUI();
+            api.notifyContentUpdated(input.skill_id);
             api.showToast(`Image size set to ${input.size_percentage}%`);
             return `Skill ${input.skill_id} display size set to ${input.size_percentage}%`;
           }
@@ -400,7 +400,7 @@ export const imageSkill: SkillHandler = {
               delete img.displaySize;
               delete img.displayHeight;
             });
-            api.updateUI();
+            api.notifyContentUpdated(input.skill_id);
             api.showToast(`All ${skill.gallery.length} images resized to ${input.width_px}px width`);
             return `All ${skill.gallery.length} gallery images resized to ${input.width_px}px width (aspect ratio maintained)`;
           } else {
@@ -408,7 +408,7 @@ export const imageSkill: SkillHandler = {
             skill.displayWidth = input.width_px;
             delete skill.displaySize;
             delete skill.displayHeight;
-            api.updateUI();
+            api.notifyContentUpdated(input.skill_id);
             api.showToast(`Image width set to ${input.width_px}px`);
             return `Skill ${input.skill_id} width set to ${input.width_px}px (aspect ratio maintained)`;
           }
@@ -451,7 +451,7 @@ export const imageSkill: SkillHandler = {
               delete img.displaySize;
               delete img.displayWidth;
             });
-            api.updateUI();
+            api.notifyContentUpdated(input.skill_id);
             api.showToast(`All ${skill.gallery.length} images resized to ${input.height_px}px height`);
             return `All ${skill.gallery.length} gallery images resized to ${input.height_px}px height (aspect ratio maintained)`;
           } else {
@@ -459,7 +459,7 @@ export const imageSkill: SkillHandler = {
             skill.displayHeight = input.height_px;
             delete skill.displaySize;
             delete skill.displayWidth;
-            api.updateUI();
+            api.notifyContentUpdated(input.skill_id);
             api.showToast(`Image height set to ${input.height_px}px`);
             return `Skill ${input.skill_id} height set to ${input.height_px}px (aspect ratio maintained)`;
           }
@@ -528,7 +528,7 @@ export const imageSkill: SkillHandler = {
             annotation: input.annotation,
           });
 
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Image ${nextIndex} added to gallery`);
           return `Image added to gallery at index ${nextIndex}. Gallery now has ${skill.gallery.length} image(s).`;
         },
@@ -569,7 +569,7 @@ export const imageSkill: SkillHandler = {
           }
 
           skill.gallery.splice(imageIndex, 1);
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Image ${input.image_index} removed from gallery`);
           return `Image ${input.image_index} removed. Gallery now has ${skill.gallery.length} image(s).`;
         },
@@ -618,7 +618,7 @@ export const imageSkill: SkillHandler = {
           }
 
           image.displaySize = input.size_percentage;
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Image ${input.image_index} size set to ${input.size_percentage}%`);
           return `Gallery image ${input.image_index} display size set to ${input.size_percentage}%`;
         },
@@ -781,12 +781,12 @@ export const imageSkill: SkillHandler = {
             // Set or clear annotation for this specific gallery image
             if (input.annotation && input.annotation.trim().length > 0) {
               image.annotation = input.annotation;
-              api.updateUI();
+              api.notifyContentUpdated(input.skill_id);
               api.showToast(`Annotation added to image ${input.image_index}`);
               return `Annotation added to image ${input.image_index} in ${input.skill_id}: "${input.annotation}"`;
             } else {
               image.annotation = undefined;
-              api.updateUI();
+              api.notifyContentUpdated(input.skill_id);
               api.showToast(`Annotation removed from image ${input.image_index}`);
               return `Annotation removed from image ${input.image_index} in ${input.skill_id}`;
             }
@@ -799,12 +799,12 @@ export const imageSkill: SkillHandler = {
             // Set or clear annotation for single image
             if (input.annotation && input.annotation.trim().length > 0) {
               skill.annotation = input.annotation;
-              api.updateUI();
+              api.notifyContentUpdated(input.skill_id);
               api.showToast(`Annotation added to ${input.skill_id}`);
               return `Annotation added to skill ${input.skill_id}: "${input.annotation}"`;
             } else {
               skill.annotation = undefined;
-              api.updateUI();
+              api.notifyContentUpdated(input.skill_id);
               api.showToast(`Annotation removed from ${input.skill_id}`);
               return `Annotation removed from skill ${input.skill_id}`;
             }

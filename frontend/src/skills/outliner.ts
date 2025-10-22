@@ -198,7 +198,7 @@ export const outlinerSkill: SkillHandler = {
           }
 
           skill.content = JSON.stringify(items);
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Item added: ${input.text}`);
           return `Item "${input.text}" added with ID ${newItem.id}`;
         },
@@ -242,7 +242,7 @@ export const outlinerSkill: SkillHandler = {
 
           item.text = input.text;
           skill.content = JSON.stringify(items);
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast('Item updated');
           return `Item ${input.item_id} updated`;
         },
@@ -280,7 +280,7 @@ export const outlinerSkill: SkillHandler = {
           }
 
           skill.content = JSON.stringify(items);
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast('Item deleted');
           return `Item ${input.item_id} deleted`;
         },
@@ -324,7 +324,7 @@ export const outlinerSkill: SkillHandler = {
 
           item.collapsed = !item.collapsed;
           skill.content = JSON.stringify(items);
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           const state = item.collapsed ? 'collapsed' : 'expanded';
           api.showToast(`Item ${state}`);
           return `Item ${input.item_id} ${state}`;

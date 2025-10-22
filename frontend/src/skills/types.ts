@@ -40,6 +40,7 @@ export interface ScratchpadAPI {
   updateUI: () => void;
   showToast: (message: string) => void;
   createSkill: (type: SkillType, content: string, altText?: string) => string;
+  notifyContentUpdated: (skillId: string) => void;
 }
 
 // Base skill handler interface

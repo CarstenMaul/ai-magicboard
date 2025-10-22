@@ -18,6 +18,7 @@ let rows: Row[] = [];
 let nextSkillId = 1;
 let nextRowNumber = 1;
 let fullscreenSkillId: string | null = null;
+let lastModifiedSkillId: string | null = null; // Track which skill was just modified for auto-scroll
 
 // Generate a short description from skill content
 function generateShortDescription(skill: Skill): string {
@@ -175,6 +176,12 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
       mainContainer.scrollTop = mainContainer.scrollHeight;
     }
   }
+
+  // Auto-scroll to modified skill (if not in fullscreen mode and a skill was modified)
+  if (lastModifiedSkillId && !isInFullscreenMode()) {
+    scrollToSkill(lastModifiedSkillId);
+    lastModifiedSkillId = null; // Clear after scrolling
+  }
 }
 
 // Attach event listeners to row control buttons
@@ -234,7 +241,8 @@ export function createSkill(type: SkillType, content: string, altText?: string):
   };
 
   rows.push(row);
-  updateScratchpadUI(true); // Scroll to bottom when adding new row
+  lastModifiedSkillId = skill.id; // Set for auto-scroll to new skill
+  updateScratchpadUI(); // Will auto-scroll to the new skill
   showToast(`${type} skill created`);
 
   return `Skill created: ${skill.id} in row ${row.rowNumber}`;
@@ -414,8 +422,18 @@ export function moveRowDown(skillId: string): string {
   return `Skill ${skillId} moved down`;
 }
 
-// Scroll to a specific skill/row
+// Check if currently in fullscreen mode
+function isInFullscreenMode(): boolean {
+  return fullscreenSkillId !== null;
+}
+
+// Scroll to a specific skill/row (only if not in fullscreen mode)
 export function scrollToSkill(skillId: string): string {
+  // Don't scroll if in fullscreen mode
+  if (isInFullscreenMode()) {
+    return `Skipping scroll (in fullscreen mode)`;
+  }
+
   const row = rows.find(r => r.skill.id === skillId);
 
   if (!row) {
@@ -568,6 +586,10 @@ export function getScratchpadTools() {
     updateUI: () => updateScratchpadUI(),
     showToast: (message: string) => showToast(message),
     createSkill: (type: SkillType, content: string, altText?: string) => createSkill(type, content, altText),
+    notifyContentUpdated: (skillId: string) => {
+      lastModifiedSkillId = skillId;
+      updateScratchpadUI();
+    },
   };
 
   // Scratchpad functions for general tools

@@ -151,7 +151,7 @@ export const tableSkill: SkillHandler = {
           tableData.data.push(input.row);
           skill.content = JSON.stringify(tableData);
 
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Row added to table`);
           return `Row added. Table now has ${tableData.data.length} rows.`;
         },
@@ -195,7 +195,7 @@ export const tableSkill: SkillHandler = {
 
           skill.content = JSON.stringify(tableData);
 
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Column "${input.column_name}" added`);
           return `Column "${input.column_name}" added. Table now has ${tableData.columns.length} columns.`;
         },
@@ -249,7 +249,7 @@ export const tableSkill: SkillHandler = {
 
           skill.content = JSON.stringify(tableData);
 
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Cell updated`);
           return `Cell [${input.row_index}, ${input.column_index}] updated from "${oldValue}" to "${input.value}"`;
         },
@@ -290,7 +290,7 @@ export const tableSkill: SkillHandler = {
           tableData.data.splice(input.row_index, 1);
           skill.content = JSON.stringify(tableData);
 
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Row ${input.row_index} deleted`);
           return `Row ${input.row_index} deleted. Table now has ${tableData.data.length} rows.`;
         },
@@ -385,7 +385,7 @@ export const tableSkill: SkillHandler = {
 
           skill.content = JSON.stringify(tableData);
 
-          api.updateUI();
+          api.notifyContentUpdated(input.skill_id);
           api.showToast(`Table sorted by "${columnName}" (${input.order})`);
           return `Table sorted by column "${columnName}" in ${input.order === 'asc' ? 'ascending' : 'descending'} order`;
         },
