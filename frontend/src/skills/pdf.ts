@@ -553,16 +553,12 @@ export const pdfSkill: SkillHandler = {
             // Extract base64 data without the data URI prefix for OpenAI SDK
             const base64Data = base64WithPrefix.split(',')[1];
 
-            // Add to scratchpad for user visibility
-            const fileName = data.source.split('/').pop() || 'PDF';
-            const altText = `${fileName} - Page ${pageNum}`;
-            api.createSkill('image', base64WithPrefix, altText);
-
             // Show toast notification
             const sizeKB = Math.round(base64Data.length / 1024);
-            api.showToast(`Converted page ${pageNum} to image (${sizeKB}KB)`);
+            api.showToast(`Sending page ${pageNum} to AI for visual analysis (${sizeKB}KB)`);
 
             // Return image in OpenAI SDK format for AI visual analysis
+            // Note: Image is NOT added to scratchpad, only sent to AI
             return {
               type: 'image',
               data: base64Data,
