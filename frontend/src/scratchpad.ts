@@ -230,6 +230,15 @@ export function createSkill(type: SkillType, content: string, altText?: string):
     altText,
   };
 
+  // Auto-convert image skills to gallery mode (even single images are galleries)
+  if (type === 'image') {
+    skill.gallery = [{
+      index: 1,
+      content: content,
+      altText: altText,
+    }];
+  }
+
   const row: Row = {
     rowNumber: nextRowNumber++,
     skill,

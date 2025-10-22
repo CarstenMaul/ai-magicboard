@@ -84,128 +84,72 @@ export const imageSkill: SkillHandler = {
   canResize: true,
 
   render: async (skill: Skill): Promise<string> => {
-    // Check if this is a gallery or single image
-    if (skill.gallery && skill.gallery.length > 0) {
-      // Render as gallery with per-image annotations
-      const imagesHtml = skill.gallery.map(img => {
-        const alt = img.altText || `Image ${img.index}`;
-        const sizeStyle = getImageStyle(img);
-        const annotationHtml = img.annotation
-          ? `<div class="image-annotation">${img.annotation}</div>`
-          : '';
-        return `
-          <div class="gallery-item">
-            <div class="gallery-image-wrapper">
-              <img src="${img.content}" alt="${alt}" ${sizeStyle} />
-              <div class="image-index">${img.index}</div>
-            </div>
-            ${annotationHtml}
-          </div>
-        `;
-      }).join('');
-
-      return `
-        <div class="skill-content image-skill">
-          <div class="image-gallery">
-            ${imagesHtml}
-          </div>
-        </div>
-      `;
-    } else {
-      // Render single image with index 1
-      const alt = skill.altText || 'Image';
-      const sizeStyle = getImageStyle(skill);
-      const annotationHtml = skill.annotation
-        ? `<div class="image-annotation">${skill.annotation}</div>`
+    // All images are galleries (even single images are a gallery with 1 item)
+    const gallery = skill.gallery || [];
+    const imagesHtml = gallery.map(img => {
+      const alt = img.altText || `Image ${img.index}`;
+      const sizeStyle = getImageStyle(img);
+      const annotationHtml = img.annotation
+        ? `<div class="image-annotation">${img.annotation}</div>`
         : '';
-
       return `
-        <div class="skill-content image-skill">
-          <div class="gallery-item">
-            <div class="gallery-image-wrapper">
-              <img src="${skill.content}" alt="${alt}" ${sizeStyle} />
-              <div class="image-index">1</div>
-            </div>
-            ${annotationHtml}
+        <div class="gallery-item">
+          <div class="gallery-image-wrapper">
+            <img src="${img.content}" alt="${alt}" ${sizeStyle} />
+            <div class="image-index">${img.index}</div>
           </div>
+          ${annotationHtml}
         </div>
       `;
-    }
+    }).join('');
+
+    return `
+      <div class="skill-content image-skill">
+        <div class="image-gallery">
+          ${imagesHtml}
+        </div>
+      </div>
+    `;
   },
 
   generateDescription: (skill: Skill): string => {
-    let desc = '';
-    if (skill.gallery && skill.gallery.length > 0) {
-      desc = `Gallery with ${skill.gallery.length} image${skill.gallery.length > 1 ? 's' : ''}`;
-      // Count how many images in gallery have annotations
-      const annotatedCount = skill.gallery.filter(img => img.annotation).length;
-      if (annotatedCount > 0) {
-        desc += ` (${annotatedCount} annotated)`;
-      }
-    } else {
-      const isBase64 = isDataURI(skill.content);
-      if (isBase64) {
-        desc = skill.altText || 'Base64 Image';
-      } else {
-        desc = skill.altText || skill.content.substring(0, 40) + (skill.content.length > 40 ? '...' : '');
-      }
-      // Add annotation indicator if present (for single images)
-      if (skill.annotation) {
-        desc += ' (annotated)';
-      }
+    const gallery = skill.gallery || [];
+    let desc = `Gallery with ${gallery.length} image${gallery.length !== 1 ? 's' : ''}`;
+
+    // Count how many images in gallery have annotations
+    const annotatedCount = gallery.filter(img => img.annotation).length;
+    if (annotatedCount > 0) {
+      desc += ` (${annotatedCount} annotated)`;
     }
+
     return desc;
   },
 
   getContentAsMarkdown: (skill: Skill): string => {
-    if (skill.gallery && skill.gallery.length > 0) {
-      // Return gallery as multiple markdown images with per-image annotations
-      return skill.gallery.map(img => {
-        const alt = img.altText || `Image ${img.index}`;
-        let imgMarkdown = `![${alt}](${img.content})`;
-        // Add per-image annotation if present
-        if (img.annotation) {
-          imgMarkdown += `\n\n*${img.annotation}*`;
-        }
-        return imgMarkdown;
-      }).join('\n\n');
-    } else {
-      // Return single image as markdown
-      const alt = skill.altText || 'Image';
-      let markdown = `![${alt}](${skill.content})`;
-
-      // Add annotation if present (for single images)
-      if (skill.annotation) {
-        markdown += `\n\n*${skill.annotation}*`;
+    const gallery = skill.gallery || [];
+    return gallery.map(img => {
+      const alt = img.altText || `Image ${img.index}`;
+      let imgMarkdown = `![${alt}](${img.content})`;
+      // Add per-image annotation if present
+      if (img.annotation) {
+        imgMarkdown += `\n\n*${img.annotation}*`;
       }
-
-      return markdown;
-    }
+      return imgMarkdown;
+    }).join('\n\n');
   },
 
   getImage: async (skill: Skill, imageIndex: number = 1) => {
-    let targetImage: { content: string; altText?: string } | undefined;
-
-    // For single images, treat as index 1
-    if (!skill.gallery || skill.gallery.length === 0) {
-      if (imageIndex !== 1) {
-        throw new Error(`Invalid image index ${imageIndex}. Single image only has index 1.`);
-      }
-      targetImage = {
-        content: skill.content,
-        altText: skill.altText,
-      };
-    } else {
-      // For galleries, find by index
-      const galleryImage = skill.gallery.find(img => img.index === imageIndex);
-      if (!galleryImage) {
-        throw new Error(`Image with index ${imageIndex} not found in gallery`);
-      }
-      targetImage = {
-        content: galleryImage.content,
-        altText: galleryImage.altText,
-      };
+    // All images are galleries - find by index
+    const gallery = skill.gallery || [];
+    const galleryImage = gallery.find(img => img.index === imageIndex);
+    if (!galleryImage) {
+      throw new Error(`Image with index ${imageIndex} not found in gallery`);
     }
+
+    const targetImage = {
+      content: galleryImage.content,
+      altText: galleryImage.altText,
+    };
 
     // Process the image based on content type
     if (isDataURI(targetImage.content)) {
@@ -342,25 +286,17 @@ export const imageSkill: SkillHandler = {
             return `Invalid size percentage: ${input.size_percentage}. Must be between 10 and 500.`;
           }
 
-          // Apply to all gallery images if gallery exists
-          if (skill.gallery && skill.gallery.length > 0) {
-            skill.gallery.forEach(img => {
-              img.displaySize = input.size_percentage;
-              delete img.displayWidth;
-              delete img.displayHeight;
-            });
-            api.notifyContentUpdated(input.skill_id);
-            api.showToast(`All ${skill.gallery.length} images resized to ${input.size_percentage}%`);
-            return `All ${skill.gallery.length} gallery images resized to ${input.size_percentage}%`;
-          } else {
-            // Apply to single image
-            skill.displaySize = input.size_percentage;
-            delete skill.displayWidth;
-            delete skill.displayHeight;
-            api.notifyContentUpdated(input.skill_id);
-            api.showToast(`Image size set to ${input.size_percentage}%`);
-            return `Skill ${input.skill_id} display size set to ${input.size_percentage}%`;
-          }
+          // Apply to all images in gallery
+          const gallery = skill.gallery || [];
+          gallery.forEach(img => {
+            img.displaySize = input.size_percentage;
+            delete img.displayWidth;
+            delete img.displayHeight;
+          });
+
+          api.notifyContentUpdated(input.skill_id);
+          api.showToast(`All ${gallery.length} image${gallery.length !== 1 ? 's' : ''} resized to ${input.size_percentage}%`);
+          return `All ${gallery.length} gallery image${gallery.length !== 1 ? 's' : ''} resized to ${input.size_percentage}%`;
         },
       },
       {
@@ -393,25 +329,17 @@ export const imageSkill: SkillHandler = {
             return `Invalid width: ${input.width_px}. Must be between 50 and 2000 pixels.`;
           }
 
-          // Apply to all gallery images if gallery exists
-          if (skill.gallery && skill.gallery.length > 0) {
-            skill.gallery.forEach(img => {
-              img.displayWidth = input.width_px;
-              delete img.displaySize;
-              delete img.displayHeight;
-            });
-            api.notifyContentUpdated(input.skill_id);
-            api.showToast(`All ${skill.gallery.length} images resized to ${input.width_px}px width`);
-            return `All ${skill.gallery.length} gallery images resized to ${input.width_px}px width (aspect ratio maintained)`;
-          } else {
-            // Apply to single image
-            skill.displayWidth = input.width_px;
-            delete skill.displaySize;
-            delete skill.displayHeight;
-            api.notifyContentUpdated(input.skill_id);
-            api.showToast(`Image width set to ${input.width_px}px`);
-            return `Skill ${input.skill_id} width set to ${input.width_px}px (aspect ratio maintained)`;
-          }
+          // Apply to all images in gallery
+          const gallery = skill.gallery || [];
+          gallery.forEach(img => {
+            img.displayWidth = input.width_px;
+            delete img.displaySize;
+            delete img.displayHeight;
+          });
+
+          api.notifyContentUpdated(input.skill_id);
+          api.showToast(`All ${gallery.length} image${gallery.length !== 1 ? 's' : ''} resized to ${input.width_px}px width`);
+          return `All ${gallery.length} gallery image${gallery.length !== 1 ? 's' : ''} resized to ${input.width_px}px width (aspect ratio maintained)`;
         },
       },
       {
@@ -444,25 +372,17 @@ export const imageSkill: SkillHandler = {
             return `Invalid height: ${input.height_px}. Must be between 50 and 2000 pixels.`;
           }
 
-          // Apply to all gallery images if gallery exists
-          if (skill.gallery && skill.gallery.length > 0) {
-            skill.gallery.forEach(img => {
-              img.displayHeight = input.height_px;
-              delete img.displaySize;
-              delete img.displayWidth;
-            });
-            api.notifyContentUpdated(input.skill_id);
-            api.showToast(`All ${skill.gallery.length} images resized to ${input.height_px}px height`);
-            return `All ${skill.gallery.length} gallery images resized to ${input.height_px}px height (aspect ratio maintained)`;
-          } else {
-            // Apply to single image
-            skill.displayHeight = input.height_px;
-            delete skill.displaySize;
-            delete skill.displayWidth;
-            api.notifyContentUpdated(input.skill_id);
-            api.showToast(`Image height set to ${input.height_px}px`);
-            return `Skill ${input.skill_id} height set to ${input.height_px}px (aspect ratio maintained)`;
-          }
+          // Apply to all images in gallery
+          const gallery = skill.gallery || [];
+          gallery.forEach(img => {
+            img.displayHeight = input.height_px;
+            delete img.displaySize;
+            delete img.displayWidth;
+          });
+
+          api.notifyContentUpdated(input.skill_id);
+          api.showToast(`All ${gallery.length} image${gallery.length !== 1 ? 's' : ''} resized to ${input.height_px}px height`);
+          return `All ${gallery.length} gallery image${gallery.length !== 1 ? 's' : ''} resized to ${input.height_px}px height (aspect ratio maintained)`;
         },
       },
       {
@@ -767,47 +687,28 @@ export const imageSkill: SkillHandler = {
             return `Skill ${input.skill_id} is not an image skill (type: ${skill.type})`;
           }
 
-          // Handle gallery images
-          if (skill.gallery && skill.gallery.length > 0) {
-            if (input.image_index === undefined || input.image_index === null) {
-              return `This is a gallery with ${skill.gallery.length} images. Please specify image_index parameter (e.g., 1, 2, 3) to annotate a specific image.`;
-            }
+          // All images are galleries - find by index
+          const gallery = skill.gallery || [];
+          if (input.image_index === undefined || input.image_index === null) {
+            return `Please specify image_index parameter (e.g., 1, 2, 3) to annotate a specific image.`;
+          }
 
-            const image = skill.gallery.find(img => img.index === input.image_index);
-            if (!image) {
-              return `Image with index ${input.image_index} not found in gallery. Available indices: ${skill.gallery.map(img => img.index).join(', ')}`;
-            }
+          const image = gallery.find(img => img.index === input.image_index);
+          if (!image) {
+            return `Image with index ${input.image_index} not found in gallery. Available indices: ${gallery.map(img => img.index).join(', ')}`;
+          }
 
-            // Set or clear annotation for this specific gallery image
-            if (input.annotation && input.annotation.trim().length > 0) {
-              image.annotation = input.annotation;
-              api.notifyContentUpdated(input.skill_id);
-              api.showToast(`Annotation added to image ${input.image_index}`);
-              return `Annotation added to image ${input.image_index} in ${input.skill_id}: "${input.annotation}"`;
-            } else {
-              image.annotation = undefined;
-              api.notifyContentUpdated(input.skill_id);
-              api.showToast(`Annotation removed from image ${input.image_index}`);
-              return `Annotation removed from image ${input.image_index} in ${input.skill_id}`;
-            }
+          // Set or clear annotation for this specific image
+          if (input.annotation && input.annotation.trim().length > 0) {
+            image.annotation = input.annotation;
+            api.notifyContentUpdated(input.skill_id);
+            api.showToast(`Annotation added to image ${input.image_index}`);
+            return `Annotation added to image ${input.image_index} in ${input.skill_id}: "${input.annotation}"`;
           } else {
-            // Handle single images
-            if (input.image_index !== undefined && input.image_index !== null) {
-              return `Skill ${input.skill_id} is a single image, not a gallery. Do not specify image_index parameter.`;
-            }
-
-            // Set or clear annotation for single image
-            if (input.annotation && input.annotation.trim().length > 0) {
-              skill.annotation = input.annotation;
-              api.notifyContentUpdated(input.skill_id);
-              api.showToast(`Annotation added to ${input.skill_id}`);
-              return `Annotation added to skill ${input.skill_id}: "${input.annotation}"`;
-            } else {
-              skill.annotation = undefined;
-              api.notifyContentUpdated(input.skill_id);
-              api.showToast(`Annotation removed from ${input.skill_id}`);
-              return `Annotation removed from skill ${input.skill_id}`;
-            }
+            image.annotation = undefined;
+            api.notifyContentUpdated(input.skill_id);
+            api.showToast(`Annotation removed from image ${input.image_index}`);
+            return `Annotation removed from image ${input.image_index} in ${input.skill_id}`;
           }
         },
       },
@@ -815,25 +716,25 @@ export const imageSkill: SkillHandler = {
   },
 
   getInstructions: (): string => {
-    return `- 'image': Images from URLs or base64 data URIs. Supports both single images and galleries.
-  * For single images: Use create_skill with type='image' and content=URL or data URI
-  * For galleries: Use add_image_to_gallery to add multiple images to one skill
-  * ALL images have index numbers displayed in the corner (single images = index 1, galleries = 1, 2, 3, etc.)
+    return `- 'image': Images from URLs or base64 data URIs. All images are galleries (even single images).
+  * To create an image: Use create_skill with type='image' and content=URL or data URI
+  * Single images are automatically created as a gallery with 1 item (index 1)
+  * To add more images: Use add_image_to_gallery to add to the same skill
+  * ALL images have index numbers displayed in the corner (1, 2, 3, etc.)
 
   Visual Analysis:
   * look_at_image(skill_id, image_index): Sends the image to you for visual analysis
   * IMPORTANT: The image is sent directly to you so you can SEE it
-  * Single images always have index 1
+  * Default index is 1 if not specified
   * Use when user says "look at image 1" or "look at image 3"
-  * Example: look_at_image("skill-1", 2) to see the second image in a gallery
+  * Example: look_at_image("skill-1", 2) to see the second image
   * Images are compressed to JPEG (25% quality) to fit RTCDataChannel limits
 
   Image Annotations (per individual image):
-  * set_image_annotation: Add descriptive text that appears directly below a specific image
-  * For single images: set_image_annotation(skill_id, annotation)
-  * For gallery images: set_image_annotation(skill_id, annotation, image_index)
-  * Example: "Annotate image 1 with the text 'This shows the login flow'" becomes set_image_annotation("skill-1", "This shows the login flow", 1)
-  * Each image in a gallery can have its own annotation shown directly below it
+  * set_image_annotation(skill_id, annotation, image_index): Add text that appears below a specific image
+  * ALWAYS specify image_index (even for single images use index 1)
+  * Example: set_image_annotation("skill-1", "This shows the login flow", 1)
+  * Each image can have its own annotation shown directly below it
   * Use annotations to explain, label, or provide context for individual images
   * Pass empty string to remove an annotation
 
