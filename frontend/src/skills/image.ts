@@ -6,17 +6,31 @@ function isDataURI(content: string): boolean {
 }
 
 // Generate style attribute for image sizing
-function getImageStyle(img: { displaySize?: number; displayWidth?: number; displayHeight?: number }): string {
+// Returns both image style and wrapper style
+function getImageStyle(img: { displaySize?: number; displayWidth?: number; displayHeight?: number }): { imageStyle: string; wrapperStyle: string } {
   if (img.displayWidth) {
-    return `style="width: ${img.displayWidth}px; height: auto;"`;
+    const imageStyle = `style="width: ${img.displayWidth}px !important; height: auto !important; max-width: none !important;"`;
+    const wrapperStyle = 'style="overflow: visible; width: fit-content;"';
+    return { imageStyle, wrapperStyle };
   }
+
   if (img.displayHeight) {
-    return `style="height: ${img.displayHeight}px; width: auto;"`;
+    const imageStyle = `style="height: ${img.displayHeight}px !important; width: auto !important; max-width: none !important;"`;
+    const wrapperStyle = 'style="overflow: visible; width: fit-content;"';
+    return { imageStyle, wrapperStyle };
   }
+
   if (img.displaySize) {
-    return `style="width: ${img.displaySize}%;"`;
+    // For percentage: use a base size of 400px and scale from there
+    // This makes sizing predictable: 100 = 400px, 150 = 600px, 50 = 200px
+    const baseSizePx = 400;
+    const targetWidth = (img.displaySize / 100) * baseSizePx;
+    const imageStyle = `style="width: ${targetWidth}px !important; height: auto !important; max-width: none !important;"`;
+    const wrapperStyle = 'style="overflow: visible; width: fit-content;"';
+    return { imageStyle, wrapperStyle };
   }
-  return '';
+
+  return { imageStyle: '', wrapperStyle: '' };
 }
 
 // Optimize and convert image to JPEG for AI viewing
@@ -88,14 +102,14 @@ export const imageSkill: SkillHandler = {
     const gallery = skill.gallery || [];
     const imagesHtml = gallery.map(img => {
       const alt = img.altText || `Image ${img.index}`;
-      const sizeStyle = getImageStyle(img);
+      const { imageStyle, wrapperStyle } = getImageStyle(img);
       const annotationHtml = img.annotation
         ? `<div class="image-annotation">${img.annotation}</div>`
         : '';
       return `
         <div class="gallery-item">
-          <div class="gallery-image-wrapper">
-            <img src="${img.content}" alt="${alt}" ${sizeStyle} />
+          <div class="gallery-image-wrapper" ${wrapperStyle}>
+            <img src="${img.content}" alt="${alt}" ${imageStyle} />
             <div class="image-index">${img.index}</div>
           </div>
           ${annotationHtml}
@@ -258,7 +272,7 @@ export const imageSkill: SkillHandler = {
       },
       {
         name: 'set_image_size',
-        description: 'Sets the display size of an image skill as a percentage. Does not re-encode the image, only changes how it is displayed. 100 = original size, 50 = half size, 200 = double size. Applies to single images or all images in a gallery.',
+        description: 'Sets the display size of an image skill as a percentage. Does not re-encode the image, only changes how it is displayed. Uses a base width of 400px: 100 = 400px, 50 = 200px, 200 = 800px. Applies to all images in a gallery.',
         parameters: {
           type: 'object',
           properties: {
@@ -268,7 +282,7 @@ export const imageSkill: SkillHandler = {
             },
             size_percentage: {
               type: 'number',
-              description: 'The display size as a percentage (10-500). Examples: 50 = half size, 100 = original, 200 = double',
+              description: 'The display size as a percentage (10-500). 100 = 400px width, 50 = 200px, 150 = 600px, 200 = 800px',
             },
           },
           required: ['skill_id', 'size_percentage'],
@@ -286,17 +300,22 @@ export const imageSkill: SkillHandler = {
             return `Invalid size percentage: ${input.size_percentage}. Must be between 10 and 500.`;
           }
 
+          // Ensure gallery exists
+          if (!skill.gallery) {
+            skill.gallery = [];
+          }
+
           // Apply to all images in gallery
-          const gallery = skill.gallery || [];
-          gallery.forEach(img => {
+          skill.gallery.forEach(img => {
             img.displaySize = input.size_percentage;
             delete img.displayWidth;
             delete img.displayHeight;
           });
 
           api.notifyContentUpdated(input.skill_id);
-          api.showToast(`All ${gallery.length} image${gallery.length !== 1 ? 's' : ''} resized to ${input.size_percentage}%`);
-          return `All ${gallery.length} gallery image${gallery.length !== 1 ? 's' : ''} resized to ${input.size_percentage}%`;
+          const targetWidth = (input.size_percentage / 100) * 400;
+          api.showToast(`All ${skill.gallery.length} image${skill.gallery.length !== 1 ? 's' : ''} resized to ${targetWidth}px (${input.size_percentage}%)`);
+          return `All ${skill.gallery.length} gallery image${skill.gallery.length !== 1 ? 's' : ''} resized to ${targetWidth}px width (${input.size_percentage}% of base 400px)`;
         },
       },
       {
@@ -329,17 +348,21 @@ export const imageSkill: SkillHandler = {
             return `Invalid width: ${input.width_px}. Must be between 50 and 2000 pixels.`;
           }
 
+          // Ensure gallery exists
+          if (!skill.gallery) {
+            skill.gallery = [];
+          }
+
           // Apply to all images in gallery
-          const gallery = skill.gallery || [];
-          gallery.forEach(img => {
+          skill.gallery.forEach(img => {
             img.displayWidth = input.width_px;
             delete img.displaySize;
             delete img.displayHeight;
           });
 
           api.notifyContentUpdated(input.skill_id);
-          api.showToast(`All ${gallery.length} image${gallery.length !== 1 ? 's' : ''} resized to ${input.width_px}px width`);
-          return `All ${gallery.length} gallery image${gallery.length !== 1 ? 's' : ''} resized to ${input.width_px}px width (aspect ratio maintained)`;
+          api.showToast(`All ${skill.gallery.length} image${skill.gallery.length !== 1 ? 's' : ''} resized to ${input.width_px}px width`);
+          return `All ${skill.gallery.length} gallery image${skill.gallery.length !== 1 ? 's' : ''} resized to ${input.width_px}px width (aspect ratio maintained)`;
         },
       },
       {
@@ -372,17 +395,21 @@ export const imageSkill: SkillHandler = {
             return `Invalid height: ${input.height_px}. Must be between 50 and 2000 pixels.`;
           }
 
+          // Ensure gallery exists
+          if (!skill.gallery) {
+            skill.gallery = [];
+          }
+
           // Apply to all images in gallery
-          const gallery = skill.gallery || [];
-          gallery.forEach(img => {
+          skill.gallery.forEach(img => {
             img.displayHeight = input.height_px;
             delete img.displaySize;
             delete img.displayWidth;
           });
 
           api.notifyContentUpdated(input.skill_id);
-          api.showToast(`All ${gallery.length} image${gallery.length !== 1 ? 's' : ''} resized to ${input.height_px}px height`);
-          return `All ${gallery.length} gallery image${gallery.length !== 1 ? 's' : ''} resized to ${input.height_px}px height (aspect ratio maintained)`;
+          api.showToast(`All ${skill.gallery.length} image${skill.gallery.length !== 1 ? 's' : ''} resized to ${input.height_px}px height`);
+          return `All ${skill.gallery.length} gallery image${skill.gallery.length !== 1 ? 's' : ''} resized to ${input.height_px}px height (aspect ratio maintained)`;
         },
       },
       {

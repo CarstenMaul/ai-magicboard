@@ -88,6 +88,10 @@ export const mermaidSkill: SkillHandler = {
 
 ## Flowchart
 
+1.	Mermaid nodes must use an ID without spaces and a label in brackets or parentheses.
+2.	Lines like Elon Elon Musk are invalid → change to Elon["Elon Musk"].
+3.	Labels with commas or long text must be inside the brackets; HTML like <br/> is okay.
+
 **Start**: \`flowchart TB|TD|BT|LR|RL\` (TD ≙ TB)
 
 **Nodes**:
