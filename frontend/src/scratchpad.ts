@@ -1,13 +1,8 @@
-import mermaid from 'mermaid';
 import { Grid } from 'gridjs';
 import { Skill, SkillType, getSkillHandler, getAllTools, getAllInstructions } from './skills';
-
-// Initialize mermaid
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'default',
-  securityLevel: 'loose',
-});
+import { renderMermaidDiagrams } from './skills/mermaid';
+import { renderPDFDocuments, attachPDFNavigationListeners } from './skills/pdf';
+import { attachOutlineToggleListeners } from './skills/outliner';
 
 // Re-export for backward compatibility
 export type { Skill, SkillType };
@@ -35,7 +30,7 @@ async function renderSkill(skill: Skill): Promise<string> {
   return await handler.render(skill);
 }
 
-export async function updateScratchpadUI(): Promise<void> {
+export async function updateScratchpadUI(scrollToBottom: boolean = false): Promise<void> {
   const scratchpadDiv = document.getElementById('scratchpad');
   if (!scratchpadDiv) return;
 
@@ -44,19 +39,11 @@ export async function updateScratchpadUI(): Promise<void> {
     const fullscreenRow = rows.find(r => r.skill.id === fullscreenSkillId);
     if (fullscreenRow) {
       const skillHtml = await renderSkill(fullscreenRow.skill);
-      const shortDescription = generateShortDescription(fullscreenRow.skill);
 
       scratchpadDiv.innerHTML = `
         <div class="fullscreen-overlay" id="fullscreenOverlay">
-          <div class="fullscreen-header">
-            <div class="fullscreen-info">
-              <span class="fullscreen-row-number">Row ${fullscreenRow.rowNumber}</span>
-              <span class="fullscreen-skill-id">${fullscreenRow.skill.id} [${fullscreenRow.skill.type}]</span>
-              <span class="fullscreen-description">${shortDescription}</span>
-            </div>
-            <button class="fullscreen-exit-btn" onclick="window.exitFullscreenSkill()" title="Exit fullscreen (ESC)">✕ Exit Fullscreen</button>
-          </div>
-          <div class="fullscreen-content">
+          <button class="fullscreen-exit-btn-minimal" onclick="window.exitFullscreenSkill()" title="Exit fullscreen (ESC)">✕</button>
+          <div class="fullscreen-content-only">
             ${skillHtml}
           </div>
         </div>
@@ -111,30 +98,7 @@ export async function updateScratchpadUI(): Promise<void> {
   if (scratchpadDiv.innerHTML !== '') {
 
     // Render mermaid diagrams
-    const mermaidElements = scratchpadDiv.querySelectorAll('.mermaid');
-    if (mermaidElements.length > 0) {
-      console.log(`Found ${mermaidElements.length} mermaid diagram(s) to render`);
-
-      // Log each mermaid element's content before rendering
-      mermaidElements.forEach((element, index) => {
-        console.log(`Mermaid diagram ${index + 1} content:`, element.textContent);
-      });
-
-      try {
-        console.log('Calling mermaid.run()...');
-        await mermaid.run({
-          nodes: Array.from(mermaidElements) as HTMLElement[],
-          suppressErrors: true,
-        });
-        console.log('Mermaid rendering completed successfully');
-      } catch (error) {
-        console.error('Failed to render mermaid diagrams:', error);
-        if (error instanceof Error) {
-          console.error('Error message:', error.message);
-          console.error('Error stack:', error.stack);
-        }
-      }
-    }
+    await renderMermaidDiagrams();
 
     // Wait for all images to load
     const images = scratchpadDiv.querySelectorAll('img');
@@ -174,11 +138,18 @@ export async function updateScratchpadUI(): Promise<void> {
       }
     });
 
+    // Render PDF documents
+    const allSkills = rows.map(r => r.skill);
+    await renderPDFDocuments(allSkills);
+
     // Add event listeners for row movement buttons
     attachRowControlListeners();
 
     // Add event listeners for outline toggles
     attachOutlineToggleListeners();
+
+    // Add event listeners for PDF navigation
+    attachPDFNavigationListeners(allSkills, updateScratchpadUI, showToast);
 
     // If we have tables, wait for Grid.js to finish DOM manipulation
     if (hasTable) {
@@ -192,10 +163,12 @@ export async function updateScratchpadUI(): Promise<void> {
     }
   }
 
-  // Scroll to bottom after all content is fully rendered (including Grid.js tables)
-  const mainContainer = document.querySelector('.main-container') as HTMLElement;
-  if (mainContainer) {
-    mainContainer.scrollTop = mainContainer.scrollHeight;
+  // Scroll to bottom only if a new row was added (not on every UI update)
+  if (scrollToBottom) {
+    const mainContainer = document.querySelector('.main-container') as HTMLElement;
+    if (mainContainer) {
+      mainContainer.scrollTop = mainContainer.scrollHeight;
+    }
   }
 }
 
@@ -221,33 +194,6 @@ function attachRowControlListeners(): void {
       if (skillId) {
         moveRowDown(skillId);
       }
-    });
-  });
-}
-
-// Attach event listeners to outline toggle buttons
-function attachOutlineToggleListeners(): void {
-  const toggleButtons = document.querySelectorAll('.outline-toggle');
-
-  toggleButtons.forEach(button => {
-    button.addEventListener('click', (e) => {
-      e.preventDefault();
-      const itemId = (button as HTMLElement).getAttribute('data-id');
-      if (!itemId) return;
-
-      // Find the outline item
-      const itemElement = document.querySelector(`.outline-item[data-id="${itemId}"]`);
-      if (!itemElement) return;
-
-      // Toggle children visibility
-      const childrenContainer = itemElement.querySelector('.outline-children');
-      if (!childrenContainer) return;
-
-      const isCurrentlyHidden = (childrenContainer as HTMLElement).style.display === 'none';
-      (childrenContainer as HTMLElement).style.display = isCurrentlyHidden ? 'block' : 'none';
-
-      // Toggle arrow icon
-      button.textContent = isCurrentlyHidden ? '▼' : '▶';
     });
   });
 }
@@ -283,7 +229,7 @@ export function createSkill(type: SkillType, content: string, altText?: string):
   };
 
   rows.push(row);
-  updateScratchpadUI();
+  updateScratchpadUI(true); // Scroll to bottom when adding new row
   showToast(`${type} skill created`);
 
   return `Skill created: ${skill.id} in row ${row.rowNumber}`;
@@ -512,33 +458,62 @@ export function scrollToSkill(skillId: string): string {
   return `Scrolled to skill ${skillId} in row ${row.rowNumber}`;
 }
 
-// Enter fullscreen mode for a specific skill
-export function enterFullscreenSkill(skillId: string): string {
-  const row = rows.find(r => r.skill.id === skillId);
+// Enter fullscreen mode for a specific skill (by skill ID or row number)
+export function enterFullscreenSkill(identifier: string | number): string {
+  try {
+    if (identifier === null || identifier === undefined) {
+      return `Invalid identifier: ${identifier}`;
+    }
 
-  if (!row) {
-    return `Skill ${skillId} not found`;
+    let row: Row | undefined;
+
+    // Check if identifier is a number (row number) or string (skill ID)
+    if (typeof identifier === 'number') {
+      // Find by row number
+      row = rows.find(r => r.rowNumber === identifier);
+      if (!row) {
+        return `Row ${identifier} not found`;
+      }
+    } else if (typeof identifier === 'string') {
+      // Find by skill ID
+      row = rows.find(r => r.skill.id === identifier);
+      if (!row) {
+        return `Skill ${identifier} not found`;
+      }
+    } else {
+      return `Invalid identifier type: ${typeof identifier}. Must be a skill ID (string) or row number (number)`;
+    }
+
+    fullscreenSkillId = row.skill.id;
+    updateScratchpadUI();
+    showToast(`${row.skill.id} in fullscreen (press ESC to exit)`);
+
+    return `Skill ${row.skill.id} (Row ${row.rowNumber}) is now displayed in fullscreen mode`;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error entering fullscreen:', error);
+    return `Failed to enter fullscreen mode: ${errorMessage}`;
   }
-
-  fullscreenSkillId = skillId;
-  updateScratchpadUI();
-  showToast(`${skillId} in fullscreen (press ESC to exit)`);
-
-  return `Skill ${skillId} is now displayed in fullscreen mode`;
 }
 
 // Exit fullscreen mode
 export function exitFullscreenSkill(): string {
-  if (!fullscreenSkillId) {
-    return 'Not currently in fullscreen mode';
+  try {
+    if (!fullscreenSkillId) {
+      return 'Not currently in fullscreen mode';
+    }
+
+    const previousSkillId = fullscreenSkillId;
+    fullscreenSkillId = null;
+    updateScratchpadUI();
+    showToast('Exited fullscreen mode');
+
+    return `Exited fullscreen mode for ${previousSkillId}`;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error exiting fullscreen:', error);
+    return `Failed to exit fullscreen mode: ${errorMessage}`;
   }
-
-  const previousSkillId = fullscreenSkillId;
-  fullscreenSkillId = null;
-  updateScratchpadUI();
-  showToast('Exited fullscreen mode');
-
-  return `Exited fullscreen mode for ${previousSkillId}`;
 }
 
 // Expose exitFullscreenSkill globally for button onclick
@@ -604,6 +579,7 @@ export function getScratchpadTools() {
     },
     updateUI: () => updateScratchpadUI(),
     showToast: (message: string) => showToast(message),
+    createSkill: (type: SkillType, content: string, altText?: string) => createSkill(type, content, altText),
   };
 
   // Scratchpad functions for general tools

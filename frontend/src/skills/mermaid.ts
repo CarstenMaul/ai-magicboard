@@ -1,4 +1,43 @@
 import { Skill, SkillHandler } from './types';
+import mermaid from 'mermaid';
+
+// Initialize mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose',
+});
+
+// Render mermaid diagrams in the DOM (called after DOM update)
+export async function renderMermaidDiagrams(): Promise<void> {
+  const scratchpadDiv = document.getElementById('scratchpad');
+  if (!scratchpadDiv) return;
+
+  const mermaidElements = scratchpadDiv.querySelectorAll('.mermaid');
+  if (mermaidElements.length > 0) {
+    console.log(`Found ${mermaidElements.length} mermaid diagram(s) to render`);
+
+    // Log each mermaid element's content before rendering
+    mermaidElements.forEach((element, index) => {
+      console.log(`Mermaid diagram ${index + 1} content:`, element.textContent);
+    });
+
+    try {
+      console.log('Calling mermaid.run()...');
+      await mermaid.run({
+        nodes: Array.from(mermaidElements) as HTMLElement[],
+        suppressErrors: true,
+      });
+      console.log('Mermaid rendering completed successfully');
+    } catch (error) {
+      console.error('Failed to render mermaid diagrams:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+    }
+  }
+}
 
 export const mermaidSkill: SkillHandler = {
   type: 'mermaid',

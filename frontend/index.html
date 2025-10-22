@@ -347,6 +347,102 @@
             padding-left: 0.5rem;
         }
 
+        /* PDF Viewer Styles */
+        .pdf-skill {
+            border-left-color: #f56565;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pdf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: #fff5f5;
+            border-bottom: 1px solid #feb2b2;
+            gap: 1rem;
+        }
+
+        .pdf-info {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .pdf-source-type {
+            font-weight: 600;
+            color: #f56565;
+        }
+
+        .pdf-page-info {
+            color: #666;
+        }
+
+        .pdf-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .pdf-nav-btn {
+            background: #f56565;
+            color: white;
+            border: none;
+            padding: 0.4rem 0.7rem;
+            font-size: 0.9rem;
+            border-radius: 0.3rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            min-height: unset;
+        }
+
+        .pdf-nav-btn:hover:not(:disabled) {
+            background: #e53e3e;
+        }
+
+        .pdf-nav-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+
+        .pdf-page-input {
+            width: 60px;
+            padding: 0.4rem;
+            border: 1px solid #feb2b2;
+            border-radius: 0.3rem;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .pdf-viewer {
+            flex: 1;
+            padding: 1rem;
+            background: #f7fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 600px;
+            overflow: auto;
+        }
+
+        .pdf-canvas {
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .pdf-source {
+            padding: 0.5rem 1rem;
+            background: #fff5f5;
+            border-top: 1px solid #feb2b2;
+            color: #666;
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+
         /* Image Gallery Styles */
         .image-gallery {
             display: grid;
@@ -611,6 +707,124 @@
         .fullscreen-content .markdown-skill {
             font-size: 1.1rem;
             line-height: 1.8;
+        }
+
+        /* Minimal fullscreen exit button - small, top-right corner */
+        .fullscreen-exit-btn-minimal {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            width: 3rem;
+            height: 3rem;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            font-weight: 300;
+        }
+
+        .fullscreen-exit-btn-minimal:hover {
+            background: rgba(0, 0, 0, 0.8);
+            transform: scale(1.1);
+        }
+
+        .fullscreen-exit-btn-minimal:active {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(0.95);
+        }
+
+        /* Fullscreen content - maximizes space for skill content */
+        .fullscreen-content-only {
+            width: 100%;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+
+        /* Skill content in fullscreen mode - no extra padding/borders */
+        .fullscreen-content-only .skill-content {
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            padding: 0;
+            border: none;
+            background: transparent;
+        }
+
+        /* Mermaid diagrams in fullscreen - full height */
+        .fullscreen-content-only .mermaid-skill {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .fullscreen-content-only .mermaid-skill .mermaid {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .fullscreen-content-only .mermaid svg {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: auto;
+        }
+
+        /* Images in fullscreen - centered and maximized */
+        .fullscreen-content-only .image-skill img {
+            max-width: 100%;
+            max-height: calc(100vh - 4rem);
+            object-fit: contain;
+            margin: auto;
+            display: block;
+        }
+
+        /* PDF viewer in fullscreen */
+        .fullscreen-content-only .pdf-skill {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Tables in fullscreen */
+        .fullscreen-content-only .table-skill {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: auto;
+        }
+
+        /* Markdown in fullscreen - larger text */
+        .fullscreen-content-only .markdown-skill {
+            font-size: 1.2rem;
+            line-height: 1.8;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Outliner in fullscreen */
+        .fullscreen-content-only .outliner-skill {
+            max-width: 1200px;
+            margin: 0 auto;
         }
     </style>
 </head>

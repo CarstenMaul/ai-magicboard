@@ -75,6 +75,33 @@ function generateId(): string {
   return 'item-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }
 
+// Attach event listeners to outline toggle buttons (called after rendering)
+export function attachOutlineToggleListeners(): void {
+  const toggleButtons = document.querySelectorAll('.outline-toggle');
+
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const itemId = (button as HTMLElement).getAttribute('data-id');
+      if (!itemId) return;
+
+      // Find the outline item
+      const itemElement = document.querySelector(`.outline-item[data-id="${itemId}"]`);
+      if (!itemElement) return;
+
+      // Toggle children visibility
+      const childrenContainer = itemElement.querySelector('.outline-children');
+      if (!childrenContainer) return;
+
+      const isCurrentlyHidden = (childrenContainer as HTMLElement).style.display === 'none';
+      (childrenContainer as HTMLElement).style.display = isCurrentlyHidden ? 'block' : 'none';
+
+      // Toggle arrow icon
+      button.textContent = isCurrentlyHidden ? '▼' : '▶';
+    });
+  });
+}
+
 export const outlinerSkill: SkillHandler = {
   type: 'outliner',
 

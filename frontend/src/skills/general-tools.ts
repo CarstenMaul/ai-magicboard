@@ -12,7 +12,7 @@ export function getGeneralTools(
     moveRowDown: (skillId: string) => string;
     clearScratchpad: () => string;
     scrollToSkill: (skillId: string) => string;
-    enterFullscreenSkill: (skillId: string) => string;
+    enterFullscreenSkill: (identifier: string | number) => string;
     exitFullscreenSkill: () => string;
   }
 ): ToolDefinition[] {
@@ -188,20 +188,23 @@ export function getGeneralTools(
     },
     {
       name: 'show_fullscreen',
-      description: 'Displays a specific skill/row in fullscreen mode, hiding all other content. Great for presentations or focusing on a single skill. User can press ESC to exit.',
+      description: 'Displays a specific skill/row in fullscreen mode, hiding all other content. Great for presentations or focusing on a single skill. User can press ESC to exit. You can specify either a skill ID (e.g., "skill-1") or a row number (e.g., 1, 2, 3).',
       parameters: {
         type: 'object',
         properties: {
-          skill_id: {
-            type: 'string',
-            description: 'The skill ID to display in fullscreen (e.g., "skill-1")',
+          identifier: {
+            oneOf: [
+              { type: 'string' },
+              { type: 'number' }
+            ],
+            description: 'The skill ID (e.g., "skill-1") or row number (e.g., 1, 2, 3) to display in fullscreen',
           },
         },
-        required: ['skill_id'],
+        required: ['identifier'],
         additionalProperties: true,
       },
       execute: async (input: any) => {
-        return scratchpadFunctions.enterFullscreenSkill(input.skill_id);
+        return scratchpadFunctions.enterFullscreenSkill(input.identifier);
       },
     },
     {
@@ -232,9 +235,13 @@ The scratchpad uses a row-based layout where each skill is displayed in its own 
 - move_row_up: Moves a skill up one position (swaps with the row above)
 - move_row_down: Moves a skill down one position (swaps with the row below)
 - scroll_to_row: Scrolls to a specific skill/row and highlights it (useful for navigation)
-- show_fullscreen: Displays a skill in fullscreen mode (great for presentations or focusing)
+- show_fullscreen: Displays a skill in fullscreen mode using either skill ID or row number (great for presentations or focusing)
 - exit_fullscreen: Exits fullscreen mode and returns to normal view
 - clear_scratchpad: Clears all skills from the scratchpad
+
+**Note:** For show_fullscreen, you can use either:
+  - Skill ID: show_fullscreen(identifier="skill-1")
+  - Row number: show_fullscreen(identifier=1)
 
 **Skill Types:**`;
 }

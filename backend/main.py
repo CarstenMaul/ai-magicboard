@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import httpx
 import os
@@ -549,6 +550,94 @@ async def call_mcp_tool(request: MCPToolCallRequest):
             status_code=500,
             detail=f"Failed to call MCP tool: {str(e)}"
         )
+
+
+@app.get("/api/local-file")
+async def get_local_file(path: str):
+    """
+    Serve a local file for the frontend to access.
+    This is needed for PDF viewer and other skills that need to access local filesystem files.
+
+    Security: Only files that the MCP filesystem server has access to should be requested.
+    The path validation is done by checking file existence and readable status.
+    Path traversal attempts (e.g., '../../../etc/passwd') are rejected.
+    """
+    try:
+        file_path = Path(path).resolve()
+
+        # Security: Reject paths with parent directory references before resolution
+        # This prevents path traversal attacks like '../../../etc/passwd'
+        if '..' in Path(path).parts:
+            logger.warning(f"[LOCAL FILE] Path traversal attempt detected: {path}")
+            raise HTTPException(
+                status_code=400,
+                detail="Path traversal is not allowed"
+            )
+
+        # Validate that the file exists and is actually a file (not a directory)
+        if not file_path.exists():
+            logger.warning(f"[LOCAL FILE] File not found: {path}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"File not found: {path}"
+            )
+
+        if not file_path.is_file():
+            logger.warning(f"[LOCAL FILE] Path is not a file: {path}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Path is not a file: {path}"
+            )
+
+        # Check if file is readable
+        if not os.access(file_path, os.R_OK):
+            logger.warning(f"[LOCAL FILE] File not readable: {path}")
+            raise HTTPException(
+                status_code=403,
+                detail=f"File not readable: {path}"
+            )
+
+        # Determine media type based on file extension
+        media_type = "application/octet-stream"
+        extension = file_path.suffix.lower()
+
+        if extension == ".pdf":
+            media_type = "application/pdf"
+        elif extension in [".jpg", ".jpeg"]:
+            media_type = "image/jpeg"
+        elif extension == ".png":
+            media_type = "image/png"
+        elif extension == ".gif":
+            media_type = "image/gif"
+        elif extension == ".txt":
+            media_type = "text/plain"
+        elif extension == ".json":
+            media_type = "application/json"
+        elif extension == ".xml":
+            media_type = "application/xml"
+
+        logger.info(f"[LOCAL FILE] Serving file: {path} (type: {media_type})")
+
+        # Return the file with appropriate headers
+        # Set Content-Disposition to 'inline' so browsers display PDFs/images instead of downloading
+        return FileResponse(
+            path=str(file_path),
+            media_type=media_type,
+            filename=file_path.name,
+            headers={
+                "Content-Disposition": f'inline; filename="{file_path.name}"'
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[LOCAL FILE] Error serving file '{path}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serve file: {str(e)}"
+        )
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,5 +1,5 @@
 // Skill types
-export type SkillType = 'markdown' | 'mermaid' | 'image' | 'table' | 'outliner';
+export type SkillType = 'markdown' | 'mermaid' | 'image' | 'table' | 'outliner' | 'pdf';
 
 // Gallery image interface
 export interface GalleryImage {
@@ -38,6 +38,7 @@ export interface ScratchpadAPI {
   getSkillById: (skillId: string) => Skill | undefined;
   updateUI: () => void;
   showToast: (message: string) => void;
+  createSkill: (type: SkillType, content: string, altText?: string) => string;
 }
 
 // Base skill handler interface
