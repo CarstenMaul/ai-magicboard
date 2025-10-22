@@ -1,5 +1,5 @@
 // Skill types
-export type SkillType = 'markdown' | 'mermaid' | 'image' | 'table' | 'outliner' | 'pdf';
+export type SkillType = 'markdown' | 'mermaid' | 'image' | 'table' | 'outliner' | 'pdf' | 'chart';
 
 // Gallery image interface
 export interface GalleryImage {

@@ -20,18 +20,18 @@ export function getGeneralTools(
   const tools: ToolDefinition[] = [
     {
       name: 'create_skill',
-      description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image" for images from URL or base64 data URI, "table" for interactive data tables.',
+      description: 'Creates a new skill in a new row. Skill types: "markdown" for text/markdown content, "mermaid" for Mermaid diagrams, "image" for images from URL or base64 data URI, "table" for interactive data tables, "chart" for Chart.js visualizations.',
       parameters: {
         type: 'object',
         properties: {
           type: {
             type: 'string',
-            enum: ['markdown', 'mermaid', 'image', 'table'],
-            description: 'The type of skill: "markdown", "mermaid", "image", or "table"',
+            enum: ['markdown', 'mermaid', 'image', 'table', 'chart'],
+            description: 'The type of skill: "markdown", "mermaid", "image", "table", or "chart"',
           },
           content: {
             type: 'string',
-            description: 'For markdown/mermaid: the text content. For image: a URL or data URI. For table: JSON string from create_table tool',
+            description: 'For markdown/mermaid: the text content. For image: a URL or data URI. For table: JSON string from create_table tool. For chart: JSON string from create_chart tool',
           },
           alt_text: {
             type: 'string',
@@ -286,7 +286,7 @@ export function getGeneralInstructions(): string {
   return `**Scratchpad Skill Tools:**
 The scratchpad uses a row-based layout where each skill is displayed in its own row with a unique skill ID.
 
-- create_skill: Creates a new skill in a new row
+- create_skill: Creates a new skill in a new row (supports: markdown, mermaid, image, table, chart)
 - read_skill: Reads a specific skill by skill ID
 - read_all_skills: Lists all skills with their IDs, row numbers, types, and descriptions
 - update_skill: Updates an existing skill's content by skill ID

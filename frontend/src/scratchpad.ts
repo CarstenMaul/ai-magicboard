@@ -1,9 +1,13 @@
 import { Grid } from 'gridjs';
+import { Chart, registerables } from 'chart.js';
 import { Skill, SkillType, getSkillHandler, getAllTools, getAllInstructions } from './skills';
 import { renderMermaidDiagrams } from './skills/mermaid';
 import { renderPDFDocuments, attachPDFNavigationListeners } from './skills/pdf';
 import { attachOutlineToggleListeners } from './skills/outliner';
 import { dataRegistry } from './dataRegistry';
+
+// Register Chart.js components
+Chart.register(...registerables);
 
 // Re-export for backward compatibility
 export type { Skill, SkillType };
@@ -141,6 +145,42 @@ export async function updateScratchpadUI(scrollToBottom: boolean = false): Promi
           }).render(wrapperElement);
         } catch (error) {
           console.error('Failed to render Grid.js table:', error);
+        }
+      }
+    });
+
+    // Initialize Chart.js charts
+    const chartCanvases = scratchpadDiv.querySelectorAll('.chart-canvas');
+    const hasChart = chartCanvases.length > 0;
+
+    chartCanvases.forEach((canvas) => {
+      const chartDataAttr = canvas.getAttribute('data-chart');
+      if (chartDataAttr) {
+        try {
+          const chartData = JSON.parse(chartDataAttr.replace(/&quot;/g, '"'));
+          const ctx = (canvas as HTMLCanvasElement).getContext('2d');
+
+          if (ctx) {
+            new Chart(ctx, {
+              type: chartData.type,
+              data: {
+                labels: chartData.labels,
+                datasets: chartData.datasets,
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'top',
+                  },
+                },
+              },
+            });
+          }
+        } catch (error) {
+          console.error('Failed to render Chart.js chart:', error);
         }
       }
     });

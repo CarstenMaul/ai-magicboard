@@ -5,6 +5,7 @@ import { imageSkill } from './image';
 import { tableSkill } from './table';
 import { outlinerSkill } from './outliner';
 import { pdfSkill } from './pdf';
+import { chartSkill } from './chart';
 import { getGeneralTools, getGeneralInstructions } from './general-tools';
 
 export * from './types';
@@ -17,6 +18,7 @@ export const skillRegistry: Map<SkillType, SkillHandler> = new Map([
   ['table', tableSkill],
   ['outliner', outlinerSkill],
   ['pdf', pdfSkill],
+  ['chart', chartSkill],
 ]);
 
 // Get skill handler by type
