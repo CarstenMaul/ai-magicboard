@@ -6,7 +6,8 @@ export interface OutlineItem {
   text: string;
   collapsed?: boolean;
   children?: OutlineItem[];
-  _animation?: 'enter' | 'exit'; // Animation state marker
+  _animation?: 'enter' | 'exit'; // Animation state marker for add/delete
+  _collapseAnimation?: 'collapsing' | 'expanding'; // Animation state marker for collapse/expand
 }
 
 // Parse outline content
@@ -29,8 +30,24 @@ function renderOutlineItems(items: OutlineItem[], level: number = 0): string {
       ? `<span class="outline-toggle" data-id="${item.id}">${isCollapsed ? '▶' : '▼'}</span>`
       : '<span class="outline-bullet">•</span>';
 
+    // Determine children display and animation
+    let childrenDisplay = 'block';
+    let childrenAnimationClass = '';
+
+    if (hasChildren) {
+      if (item._collapseAnimation === 'collapsing') {
+        childrenDisplay = 'block'; // Show so it can animate to hidden
+        childrenAnimationClass = 'outline-children-collapsing';
+      } else if (item._collapseAnimation === 'expanding') {
+        childrenDisplay = 'block'; // Show during expand animation
+        childrenAnimationClass = 'outline-children-expanding';
+      } else {
+        childrenDisplay = isCollapsed ? 'none' : 'block';
+      }
+    }
+
     const childrenHtml = hasChildren
-      ? `<div class="outline-children" style="display: ${isCollapsed ? 'none' : 'block'};">${renderOutlineItems(item.children!, level + 1)}</div>`
+      ? `<div class="outline-children ${childrenAnimationClass}" style="display: ${childrenDisplay};">${renderOutlineItems(item.children!, level + 1)}</div>`
       : '';
 
     // Add animation class if item is animating
@@ -102,6 +119,24 @@ function cleanupAnimation(skillId: string, itemId: string, api: ScratchpadAPI, s
       api.notifyContentUpdated(skillId);
     }
   }, 400); // Match animation duration
+}
+
+// Collapse/expand animation cleanup helper
+function cleanupCollapseAnimation(skillId: string, itemId: string, api: ScratchpadAPI): void {
+  setTimeout(() => {
+    const skill = api.getSkillById(skillId);
+    if (!skill || skill.type !== 'outliner') return;
+
+    const items = parseOutline(skill.content);
+    const item = findItem(items, itemId);
+
+    if (item && item._collapseAnimation) {
+      // Remove the animation marker after collapse/expand animation
+      delete item._collapseAnimation;
+      skill.content = JSON.stringify(items);
+      api.notifyContentUpdated(skillId);
+    }
+  }, 300); // Match collapse/expand animation duration
 }
 
 // Attach event listeners to outline toggle buttons (called after rendering)
@@ -372,6 +407,125 @@ export const outlinerSkill: SkillHandler = {
         },
       },
       {
+        name: 'collapse_outline_item',
+        description: 'Collapses an outline item with children, hiding its children with animation.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the outliner',
+            },
+            item_id: {
+              type: 'string',
+              description: 'The ID of the item to collapse',
+            },
+          },
+          required: ['skill_id', 'item_id'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'outliner') {
+            return `Skill ${input.skill_id} is not an outliner skill`;
+          }
+
+          const items = parseOutline(skill.content);
+          const item = findItem(items, input.item_id);
+          if (!item) {
+            return `Item ${input.item_id} not found`;
+          }
+
+          if (!item.children || item.children.length === 0) {
+            return `Item ${input.item_id} has no children to collapse`;
+          }
+
+          if (item.collapsed) {
+            return `Item ${input.item_id} is already collapsed`;
+          }
+
+          // Mark for collapsing animation
+          item._collapseAnimation = 'collapsing';
+          skill.content = JSON.stringify(items);
+          api.notifyContentUpdated(input.skill_id);
+
+          // After animation, set collapsed state and clean up marker
+          setTimeout(() => {
+            const skillAfter = api.getSkillById(input.skill_id);
+            if (!skillAfter || skillAfter.type !== 'outliner') return;
+
+            const itemsAfter = parseOutline(skillAfter.content);
+            const itemAfter = findItem(itemsAfter, input.item_id);
+            if (itemAfter) {
+              itemAfter.collapsed = true;
+              delete itemAfter._collapseAnimation;
+              skillAfter.content = JSON.stringify(itemsAfter);
+              api.notifyContentUpdated(input.skill_id);
+            }
+          }, 300);
+
+          api.showToast(`Item collapsed`);
+          return `Item ${input.item_id} collapsed`;
+        },
+      },
+      {
+        name: 'expand_outline_item',
+        description: 'Expands a collapsed outline item, showing its children with animation.',
+        parameters: {
+          type: 'object',
+          properties: {
+            skill_id: {
+              type: 'string',
+              description: 'The skill ID of the outliner',
+            },
+            item_id: {
+              type: 'string',
+              description: 'The ID of the item to expand',
+            },
+          },
+          required: ['skill_id', 'item_id'],
+          additionalProperties: true,
+        },
+        execute: async (input: any) => {
+          const skill = api.getSkillById(input.skill_id);
+          if (!skill) {
+            return `Skill ${input.skill_id} not found`;
+          }
+          if (skill.type !== 'outliner') {
+            return `Skill ${input.skill_id} is not an outliner skill`;
+          }
+
+          const items = parseOutline(skill.content);
+          const item = findItem(items, input.item_id);
+          if (!item) {
+            return `Item ${input.item_id} not found`;
+          }
+
+          if (!item.children || item.children.length === 0) {
+            return `Item ${input.item_id} has no children to expand`;
+          }
+
+          if (!item.collapsed) {
+            return `Item ${input.item_id} is already expanded`;
+          }
+
+          // Set expanded state and mark for expanding animation
+          item.collapsed = false;
+          item._collapseAnimation = 'expanding';
+          skill.content = JSON.stringify(items);
+          api.notifyContentUpdated(input.skill_id);
+
+          // After animation, clean up marker
+          cleanupCollapseAnimation(input.skill_id, input.item_id, api);
+
+          api.showToast(`Item expanded`);
+          return `Item ${input.item_id} expanded`;
+        },
+      },
+      {
         name: 'read_outline',
         description: 'Reads the entire outline structure with all item IDs and text.',
         parameters: {
@@ -431,14 +585,22 @@ export const outlinerSkill: SkillHandler = {
   * Create with create_skill(type='outliner', content='[]')
   * Items have unique IDs, text content, and can have children
   * Add items at root level or as children of existing items
-  * Items with children can be collapsed/expanded
+  * Items with children can be collapsed/expanded with smooth animations
   * Use read_outline to see all item IDs before updating/deleting
 
   Tools:
-  * add_outline_item: Add new item (with optional parent_id)
+  * add_outline_item: Add new item (with optional parent_id) - slides in from left
   * update_outline_item: Change item text
-  * delete_outline_item: Remove item and all children
-  * toggle_outline_item: Collapse/expand items with children
-  * read_outline: View entire structure with IDs`;
+  * delete_outline_item: Remove item and all children - slides out to right
+  * collapse_outline_item: Collapse item to hide children - slides up with animation
+  * expand_outline_item: Expand item to show children - slides down with animation
+  * toggle_outline_item: Toggle collapsed/expanded state (no animation control)
+  * read_outline: View entire structure with IDs
+
+  Animations:
+  * Adding items: Slide in from left (400ms)
+  * Deleting items: Slide out to right (400ms)
+  * Collapsing: Children slide up and fade out (300ms)
+  * Expanding: Children slide down and fade in (300ms)`;
   },
 };

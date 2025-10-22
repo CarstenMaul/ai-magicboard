@@ -391,6 +391,40 @@
             overflow: hidden;
         }
 
+        /* Outliner collapse/expand animations */
+        @keyframes slideDown {
+            0% {
+                max-height: 0;
+                opacity: 0;
+                overflow: hidden;
+            }
+            100% {
+                max-height: 500px;
+                opacity: 1;
+                overflow: visible;
+            }
+        }
+
+        @keyframes slideUp {
+            0% {
+                max-height: 500px;
+                opacity: 1;
+            }
+            100% {
+                max-height: 0;
+                opacity: 0;
+                overflow: hidden;
+            }
+        }
+
+        .outline-children-expanding {
+            animation: slideDown 300ms ease-out forwards;
+        }
+
+        .outline-children-collapsing {
+            animation: slideUp 300ms ease-in forwards;
+        }
+
         /* PDF Viewer Styles */
         .pdf-skill {
             border-left-color: #f56565;
