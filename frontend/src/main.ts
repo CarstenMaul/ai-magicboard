@@ -285,7 +285,34 @@ async function connectAgent(): Promise<void> {
     const { tools: scratchpadTools, instructions: scratchpadInstructions } = getScratchpadTools();
 
     // Wrap scratchpad tools with the tool() function from @openai/agents-core
-    const wrappedScratchpadTools = scratchpadTools.map((t: any) => tool(t));
+    // AND add image handling to send images directly to the AI
+    const wrappedScratchpadTools = scratchpadTools.map((t: any) => tool({
+      ...t,
+      execute: async (input: any) => {
+        const result = await t.execute(input);
+
+        // Check if result is an image object (returned by pdf_page_to_image and similar tools)
+        if (typeof result === 'object' && result !== null && result.type === 'image') {
+          // Convert to data URI format for session.addImage()
+          const dataUri = `data:${result.mediaType};base64,${result.data}`;
+
+          // Send image to AI for visual analysis
+          if (session) {
+            session.addImage(dataUri);
+            console.log(`✓ Sent image to AI from tool: ${t.name} (size: ${result.data.length} chars)`);
+          } else {
+            console.warn(`⚠ Session not available to send image from tool: ${t.name}`);
+          }
+
+          // Return text description instead of image object
+          // This tells the AI that the image has been sent and is ready for analysis
+          return `Image has been sent to you for visual analysis. You can now see and describe what's in the image.`;
+        }
+
+        // For non-image results, return as-is
+        return result;
+      }
+    }));
 
     // Create the agent with scratchpad tools and MCP tools
     agent = new RealtimeAgent({
