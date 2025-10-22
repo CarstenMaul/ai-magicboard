@@ -32,7 +32,19 @@ ai-magicboard/
 ## Features
 
 - **Real-Time Voice Conversations**: WebRTC-based voice interaction with OpenAI's Realtime API
-- **Scratchpad System**: Live markdown and Mermaid diagram rendering with image support
+- **Advanced Scratchpad System**: Multi-skill content management with live rendering
+  - **Markdown**: Rich text formatting and notes
+  - **Mermaid Diagrams**: Flowcharts, sequence diagrams, and visualizations
+  - **Images**: URL-based or base64 image galleries with annotations
+  - **Interactive Tables**: Grid.js-powered tables with search, sort, and pagination
+  - **Charts**: Chart.js visualizations (line, bar, pie, doughnut) with live data updates
+  - **PDFs**: Inline PDF viewing with page navigation
+  - **Outliner**: Hierarchical collapsible structure for organizing content
+- **Data Object Registry**: Shared data system enabling real-time synchronization between skills
+  - Multiple skills can subscribe to the same data object
+  - Changes propagate automatically to all subscribers
+  - Perfect for synchronized table-chart views
+- **Image Export**: Save any visual content (images, charts, PDFs) as JPEG files to local filesystem
 - **Search Integration**: Web search via OpenAI and Google Custom Search APIs
 - **MCP Tool System**: Extensible tool integration (memory, screenshots, OPC UA, custom tools)
 - **Server-Side Monitoring**: WebSocket event logging and session control
@@ -130,12 +142,28 @@ ai-magicboard/
 
 ### Available Voice Commands
 
-Try asking the agent to:
+**Scratchpad Commands:**
 - "Add this to the scratchpad: [your notes]"
+- "Create a table with columns Name, Age, City"
+- "Create a bar chart showing sales data"
+- "Draw a flowchart showing the authentication process"
+- "Show me an image of [subject]"
+- "Add a PDF from [file path]"
 - "Clear the scratchpad"
+- "Save this chart to ~/Desktop as sales_chart.jpg"
+
+**Data and Analysis:**
+- "Look at the chart and describe what you see"
+- "Subscribe this chart to the table data"
+- "Update the table with new data"
+- "Sort the table by the Age column"
+
+**Search Commands:**
 - "Search the web for [topic]"
 - "Show me images of [subject]"
-- "Remember that [information]" (if Memory MCP server is configured)
+
+**Memory Commands** (if Memory MCP server is configured):
+- "Remember that [information]"
 - "What do you remember about me?"
 
 ## API Endpoints
@@ -145,6 +173,8 @@ Try asking the agent to:
 - `POST /api/web-search` - OpenAI web search with citations
 - `POST /api/google-search` - Google Custom Search
 - `POST /api/google-image-search` - Google Image Search
+- `POST /api/save-image` - Save base64-encoded images as JPEG files to filesystem
+- `GET /api/local-file` - Serve local files for PDF and image viewing
 - `GET /api/mcp-tools` - List all available MCP tools
 - `POST /api/mcp-call` - Execute MCP tool calls
 
@@ -198,12 +228,16 @@ See **[MCP_CONFIG.md](MCP_CONFIG.md)** for configuration details and **[MCP_TEST
 - **OpenAI Agents Realtime SDK** (`@openai/agents-realtime`) - Voice/real-time capabilities
 - **Marked** - Markdown parsing and rendering
 - **Mermaid** - Diagram and visualization rendering
+- **Grid.js** - Interactive data tables with search, sort, and pagination
+- **Chart.js 4.5.1** - Responsive charts (line, bar, pie, doughnut)
+- **PDF.js** - PDF document rendering and viewing
 
 ### Backend Stack
 - **Python 3.8+**
 - **FastAPI** - Modern async web framework
 - **Uvicorn** - ASGI server
 - **httpx** - Async HTTP client
+- **Pillow** - Image processing and JPEG conversion
 - **WebSockets** - Real-time communication
 - **Model Context Protocol (MCP)** - Extensible tool integration
 
