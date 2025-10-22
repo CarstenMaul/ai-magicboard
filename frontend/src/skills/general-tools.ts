@@ -276,6 +276,93 @@ export function getGeneralTools(
       },
     ];
 
+    // Add save_image_to_file tool
+    tools.push({
+      name: 'save_image_to_file',
+      description: 'Saves an image from a skill as a JPEG file to a specified directory. Works with image skills, chart skills, PDF skills, and any skill that can generate images.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_id: {
+            type: 'string',
+            description: 'The skill ID containing the image to save (e.g., "skill-1")',
+          },
+          directory: {
+            type: 'string',
+            description: 'Directory path where the image should be saved (e.g., "/Users/username/Pictures" or "~/Desktop"). Supports ~ for home directory.',
+          },
+          filename: {
+            type: 'string',
+            description: 'Optional: Filename for the saved image (e.g., "my_chart.jpg"). If not provided, a timestamped filename will be generated. Extension .jpg will be added if not present.',
+          },
+          index: {
+            type: 'number',
+            description: 'Optional: Index for multi-item skills (default: 1). For image galleries: specifies which image (1, 2, 3...). For PDF skills: specifies which page. For chart skills: ignored (always saves the chart).',
+            default: 1,
+          },
+        },
+        required: ['skill_id', 'directory'],
+        additionalProperties: true,
+      },
+      execute: async (input: any) => {
+        const skill = api!.getSkillById(input.skill_id);
+        if (!skill) {
+          return `Skill ${input.skill_id} not found`;
+        }
+
+        try {
+          // Import skill handlers dynamically
+          const { getSkillHandler } = await import('./index');
+          const handler = getSkillHandler(skill.type);
+
+          if (!handler.getImage) {
+            return `Skill ${input.skill_id} (type: ${skill.type}) does not support image generation`;
+          }
+
+          // Get image data from the skill
+          const imageIndex = input.index || 1;
+          const imageResult = await handler.getImage(skill, imageIndex);
+
+          // Handle different return formats
+          let base64Data: string;
+          if (typeof imageResult === 'string') {
+            // If it's a string, it's an error message
+            return imageResult;
+          } else if (imageResult.type === 'image') {
+            // It's an image object {type, data, mediaType}
+            base64Data = imageResult.data;
+          } else {
+            return `Unexpected image format from skill ${input.skill_id}`;
+          }
+
+          // Call backend API to save the image
+          const response = await fetch('http://localhost:8000/api/save-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              image_data: base64Data,
+              directory: input.directory,
+              filename: input.filename || null,
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            return `Failed to save image: ${error.detail || response.statusText}`;
+          }
+
+          const result = await response.json();
+          return `Image saved successfully to: ${result.path}`;
+
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          return `Failed to save image: ${errorMessage}`;
+        }
+      },
+    });
+
     return [...tools, ...dataObjectTools];
   }
 
@@ -297,6 +384,12 @@ The scratchpad uses a row-based layout where each skill is displayed in its own 
 - show_fullscreen: Displays a skill in fullscreen mode using either skill ID or row number (great for presentations or focusing)
 - exit_fullscreen: Exits fullscreen mode and returns to normal view
 - clear_scratchpad: Clears all skills from the scratchpad
+- save_image_to_file: Saves an image from any skill (image, chart, PDF) as a JPEG file to a directory
+  * Specify skill_id, directory, and optional filename
+  * For image galleries: use index to specify which image (1, 2, 3...)
+  * For PDF skills: use index to specify which page
+  * For charts: index is ignored (always saves the chart)
+  * Example: save_image_to_file(skill_id="skill-1", directory="~/Desktop", filename="my_chart.jpg")
 
 **Data Object Registry Tools:**
 - list_data_objects: Lists all registered data objects in the global registry

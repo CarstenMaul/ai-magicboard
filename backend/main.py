@@ -532,6 +532,12 @@ class MCPToolCallRequest(BaseModel):
     arguments: Dict[str, Any]
 
 
+class SaveImageRequest(BaseModel):
+    image_data: str  # Base64 encoded image data
+    directory: str   # Directory path to save the image
+    filename: Optional[str] = None  # Optional filename, auto-generated if not provided
+
+
 @app.post("/api/mcp-call")
 async def call_mcp_tool(request: MCPToolCallRequest):
     """
@@ -554,6 +560,74 @@ async def call_mcp_tool(request: MCPToolCallRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to call MCP tool: {str(e)}"
+        )
+
+
+@app.post("/api/save-image")
+async def save_image(request: SaveImageRequest):
+    """
+    Save a base64-encoded image as a JPEG file to the specified directory.
+    """
+    import base64
+    from datetime import datetime
+    from PIL import Image
+    import io
+
+    try:
+        # Decode base64 image data
+        image_bytes = base64.b64decode(request.image_data)
+
+        # Open image with PIL
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Convert to RGB if necessary (JPEG doesn't support transparency)
+        if image.mode in ('RGBA', 'LA', 'P'):
+            # Create white background
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        # Resolve directory path
+        directory = Path(request.directory).expanduser().resolve()
+
+        # Create directory if it doesn't exist
+        directory.mkdir(parents=True, exist_ok=True)
+
+        # Generate filename if not provided
+        if request.filename:
+            filename = request.filename
+            # Ensure .jpg or .jpeg extension
+            if not filename.lower().endswith(('.jpg', '.jpeg')):
+                filename += '.jpg'
+        else:
+            # Auto-generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            filename = f"image_{timestamp}.jpg"
+
+        # Full file path
+        file_path = directory / filename
+
+        # Save as JPEG with high quality
+        image.save(file_path, 'JPEG', quality=95, optimize=True)
+
+        logger.info(f"Saved image to: {file_path}")
+
+        return {
+            "success": True,
+            "path": str(file_path),
+            "filename": filename,
+            "directory": str(directory)
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to save image: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save image: {str(e)}"
         )
 
 
