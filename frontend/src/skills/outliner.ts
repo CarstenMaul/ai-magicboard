@@ -6,6 +6,7 @@ export interface OutlineItem {
   text: string;
   collapsed?: boolean;
   children?: OutlineItem[];
+  _animation?: 'enter' | 'exit'; // Animation state marker
 }
 
 // Parse outline content
@@ -32,8 +33,13 @@ function renderOutlineItems(items: OutlineItem[], level: number = 0): string {
       ? `<div class="outline-children" style="display: ${isCollapsed ? 'none' : 'block'};">${renderOutlineItems(item.children!, level + 1)}</div>`
       : '';
 
+    // Add animation class if item is animating
+    const animationClass = item._animation === 'enter' ? 'outline-item-entering'
+                         : item._animation === 'exit' ? 'outline-item-exiting'
+                         : '';
+
     return `
-      <div class="outline-item" data-level="${level}" data-id="${item.id}">
+      <div class="outline-item ${animationClass}" data-level="${level}" data-id="${item.id}">
         <div class="outline-header">
           ${toggleIcon}
           <span class="outline-text">${item.text}</span>
@@ -73,6 +79,29 @@ function removeItem(items: OutlineItem[], id: string): boolean {
 // Generate a unique ID
 function generateId(): string {
   return 'item-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+// Animation cleanup helper - removes animation markers after animation completes
+function cleanupAnimation(skillId: string, itemId: string, api: ScratchpadAPI, shouldRemove: boolean = false): void {
+  setTimeout(() => {
+    const skill = api.getSkillById(skillId);
+    if (!skill || skill.type !== 'outliner') return;
+
+    const items = parseOutline(skill.content);
+    const item = findItem(items, itemId);
+
+    if (shouldRemove) {
+      // Actually remove the item after exit animation
+      removeItem(items, itemId);
+      skill.content = JSON.stringify(items);
+      api.notifyContentUpdated(skillId);
+    } else if (item && item._animation) {
+      // Just remove the animation marker after enter animation
+      delete item._animation;
+      skill.content = JSON.stringify(items);
+      api.notifyContentUpdated(skillId);
+    }
+  }, 400); // Match animation duration
 }
 
 // Attach event listeners to outline toggle buttons (called after rendering)
@@ -180,6 +209,7 @@ export const outlinerSkill: SkillHandler = {
             id: generateId(),
             text: input.text,
             children: [],
+            _animation: 'enter', // Mark for enter animation
           };
 
           if (input.parent_id) {
@@ -199,6 +229,10 @@ export const outlinerSkill: SkillHandler = {
 
           skill.content = JSON.stringify(items);
           api.notifyContentUpdated(input.skill_id);
+
+          // Clean up animation marker after animation completes
+          cleanupAnimation(input.skill_id, newItem.id, api, false);
+
           api.showToast(`Item added: ${input.text}`);
           return `Item "${input.text}" added with ID ${newItem.id}`;
         },
@@ -275,12 +309,19 @@ export const outlinerSkill: SkillHandler = {
           }
 
           const items = parseOutline(skill.content);
-          if (!removeItem(items, input.item_id)) {
+          const item = findItem(items, input.item_id);
+          if (!item) {
             return `Item ${input.item_id} not found`;
           }
 
+          // Mark item for exit animation
+          item._animation = 'exit';
           skill.content = JSON.stringify(items);
           api.notifyContentUpdated(input.skill_id);
+
+          // Actually remove the item after animation completes
+          cleanupAnimation(input.skill_id, input.item_id, api, true);
+
           api.showToast('Item deleted');
           return `Item ${input.item_id} deleted`;
         },

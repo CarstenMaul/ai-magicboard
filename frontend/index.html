@@ -347,6 +347,50 @@
             padding-left: 0.5rem;
         }
 
+        /* Outliner animations */
+        @keyframes slideInFromLeft {
+            0% {
+                transform: translateX(-30px);
+                opacity: 0;
+                max-height: 0;
+                margin-bottom: 0;
+                overflow: hidden;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+                max-height: 200px;
+                margin-bottom: 0.5rem;
+                overflow: visible;
+            }
+        }
+
+        @keyframes slideOutToRight {
+            0% {
+                transform: translateX(0);
+                opacity: 1;
+                max-height: 200px;
+                margin-bottom: 0.5rem;
+            }
+            100% {
+                transform: translateX(30px);
+                opacity: 0;
+                max-height: 0;
+                margin-bottom: 0;
+                overflow: hidden;
+            }
+        }
+
+        .outline-item-entering {
+            animation: slideInFromLeft 400ms ease-out forwards;
+            overflow: hidden;
+        }
+
+        .outline-item-exiting {
+            animation: slideOutToRight 400ms ease-in forwards;
+            overflow: hidden;
+        }
+
         /* PDF Viewer Styles */
         .pdf-skill {
             border-left-color: #f56565;
