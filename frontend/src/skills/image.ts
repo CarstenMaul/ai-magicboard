@@ -298,6 +298,12 @@ export const imageSkill: SkillHandler = {
 
           try {
             const result = await imageSkill.getImage!(skill, imageIndex);
+
+            // If result is a string, it's an error message
+            if (typeof result === 'string') {
+              return result;
+            }
+
             const sizeKB = Math.round(result.data.length / 1024);
             api.showToast(`Sending image ${imageIndex} to AI for visual analysis (${sizeKB}KB)`);
             return result;

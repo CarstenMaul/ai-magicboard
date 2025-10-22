@@ -330,7 +330,7 @@ requirement r1 {
     return `\`\`\`mermaid\n${skill.content}\n\`\`\``;
   },
 
-  getImage: async (skill: Skill, imageIndex: number = 1): Promise<string> => {
+  getImage: async (_skill: Skill, _imageIndex: number = 1): Promise<string> => {
     return `Mermaid diagram skills do not currently support image extraction for visual analysis. This skill contains a mermaid diagram definition. The diagram is rendered in the scratchpad for the user to view, but cannot be sent to you as an image.`;
   },
 };

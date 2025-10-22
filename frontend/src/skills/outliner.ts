@@ -374,7 +374,7 @@ export const outlinerSkill: SkillHandler = {
     ];
   },
 
-  getImage: async (skill: Skill, imageIndex: number = 1): Promise<string> => {
+  getImage: async (skill: Skill, _imageIndex: number = 1): Promise<string> => {
     const items = parseOutline(skill.content);
     const countItems = (items: OutlineItem[]): number => {
       return items.reduce((count, item) => {

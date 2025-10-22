@@ -524,21 +524,17 @@ export const pdfSkill: SkillHandler = {
       },
       {
         name: 'pdf_page_to_image',
-        description: 'Convert the current PDF page to an image for visual analysis. Returns the image to the AI model so it can see and analyze charts, diagrams, tables, or any visual content. The image is also added to the scratchpad for the user to see.',
+        description: 'Convert a PDF page to an image for visual analysis. Returns the image to the AI model so it can see and analyze charts, diagrams, tables, or any visual content. Use this when the user asks to "look at page 3" or "show me page 5".',
         parameters: {
           type: 'object',
           properties: {
             skillId: {
               type: 'string',
-              description: 'The skill ID of the PDF to convert',
+              description: 'The skill ID of the PDF to convert (e.g., "skill-1")',
             },
             page: {
               type: 'number',
               description: 'The page number to convert (1-based index). Default: current page',
-            },
-            scale: {
-              type: 'number',
-              description: 'Rendering scale/quality (1.0 = 72dpi, 2.0 = 144dpi, etc). Default: 1.5. Higher values = better quality but larger file size.',
             },
           },
           required: ['skillId'],
@@ -546,78 +542,31 @@ export const pdfSkill: SkillHandler = {
         } as const,
         execute: async (input: any) => {
           const skill = api.getSkillById(input.skillId);
-          if (!skill || skill.type !== 'pdf') {
-            return `Skill ${input.skillId} not found or is not a PDF`;
+          if (!skill) {
+            return `Skill ${input.skillId} not found`;
+          }
+          if (skill.type !== 'pdf') {
+            return `Skill ${input.skillId} is not a PDF skill (type: ${skill.type})`;
           }
 
           const data = parsePDFContent(skill.content);
-          const scale = input.scale || 1.5;
           const pageNum = input.page || data.currentPage;
 
           try {
-            // Determine the PDF source URL
-            let pdfSource = data.source;
-            if (data.sourceType === 'file') {
-              // For local files, use the backend proxy endpoint
-              pdfSource = `http://localhost:8000/api/local-file?path=${encodeURIComponent(data.source)}`;
+            const result = await pdfSkill.getImage(skill, pageNum);
+
+            // If result is a string, it's an error message
+            if (typeof result === 'string') {
+              return result;
             }
-
-            // Load the PDF
-            const pdf = await pdfjsLib.getDocument(pdfSource).promise;
-            const totalPages = pdf.numPages;
-
-            // Update total pages if not set
-            if (!data.totalPages) {
-              data.totalPages = totalPages;
-              skill.content = serializePDFContent(data);
-            }
-
-            // Validate page number
-            if (pageNum < 1 || pageNum > totalPages) {
-              return `Invalid page number: ${pageNum}. Must be between 1 and ${totalPages}`;
-            }
-
-            // Convert the page to image
-            const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale });
-
-            // Create off-screen canvas
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            if (!context) {
-              throw new Error('Failed to get canvas context');
-            }
-
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-
-            // Render page to canvas
-            await page.render({
-              canvasContext: context,
-              viewport: viewport,
-            }).promise;
-
-            // Convert canvas to JPEG with 25% quality for smaller file size
-            // This is necessary because RTCDataChannel has message size limits (typically 256KB)
-            // JPEG at 25% quality provides good enough visual analysis while keeping size down
-            const base64WithPrefix = canvas.toDataURL('image/jpeg', 0.25);
-
-            // Extract base64 data without the data URI prefix for OpenAI SDK
-            const base64Data = base64WithPrefix.split(',')[1];
 
             // Show toast notification
-            const sizeKB = Math.round(base64Data.length / 1024);
+            const sizeKB = Math.round(result.data.length / 1024);
             api.showToast(`Sending page ${pageNum} to AI for visual analysis (${sizeKB}KB)`);
 
-            // Return image in OpenAI SDK format for AI visual analysis
-            // Note: Image is NOT added to scratchpad, only sent to AI
-            return {
-              type: 'image',
-              data: base64Data,
-              mediaType: 'image/jpeg'
-            };
+            return result;
           } catch (error) {
-            return `Failed to convert PDF page to image: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            return `Error converting PDF page to image: ${error instanceof Error ? error.message : 'Unknown error'}`;
           }
         },
       },
